@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="orbit-token" content="__ORBIT_TOKEN__">
+  <meta name="color-scheme" content="dark">
+  <title>Orbit360 · Tu historia, desde cualquier ángulo</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Orbit360, inicio"><span class="brand-orbit" aria-hidden="true"></span><span>orbit<span class="brand-number">360</span></span><span class="tag">OPEN SOURCE</span></a>
+    <span class="local-status"><i></i> Estudio local</span>
+    <div class="top-actions"><button class="quiet" id="save-project">Guardar proyecto</button><button class="primary" id="export" disabled>Exportar vídeo <span aria-hidden="true">↗</span></button></div>
+  </header>
+  <div id="notice" class="notice" role="status" hidden><span id="notice-text"></span><button id="dismiss-notice" aria-label="Cerrar aviso">×</button></div>
+  <main class="workspace">
+    <aside class="library panel" aria-label="Biblioteca de medios">
+      <div class="panel-heading"><div><span class="eyebrow">01 / MATERIAL</span><h2>Tu biblioteca <span id="asset-count" class="count">0</span></h2></div><button class="square" id="open-import" aria-label="Importar vídeos">+</button></div>
+      <p class="panel-description">Originales Insta360 y vídeos MP4.</p>
+      <div class="library-tools"><label class="check"><input type="checkbox" id="select-all"> Seleccionar todos</label></div>
+      <div id="asset-list" class="asset-list"></div>
+      <div class="library-footer"><button id="manual-plan" class="secondary wide" disabled>Crear montaje manual</button><p>Los originales permanecen intactos.</p></div>
+    </aside>
+
+    <section class="editing-area" aria-label="Editor">
+      <section class="preview-panel panel">
+        <div class="preview-heading"><div><span class="eyebrow">VISTA PREVIA</span><h1 id="preview-title">Una historia. Todos los ángulos.</h1></div><div class="view-switch" aria-label="Modo de vista"><button id="video-mode" class="active" aria-pressed="true">Vídeo</button><button id="frame-mode" aria-pressed="false">Encuadre</button></div></div>
+        <div id="preview-stage" class="preview-stage">
+          <div id="preview-empty" class="preview-empty"><div class="sphere" aria-hidden="true"><i></i><i></i><i></i><b></b></div><span class="eyebrow">TU PRÓXIMA HISTORIA EMPIEZA AQUÍ</span><h2>Más que un punto de vista.</h2><p>Importa tus vídeos, describe la edición y ajusta cada ángulo antes de exportar.</p><button class="primary" id="empty-import">Importar material <span aria-hidden="true">+</span></button></div>
+          <video id="video" controls playsinline preload="metadata" hidden></video>
+          <img id="frame" alt="Vista previa del encuadre del clip seleccionado" hidden>
+          <div id="prepare-overlay" class="prepare-overlay" hidden><span class="eyebrow">ORIGINAL INSTA360</span><h2>Prepara la vista de 360°</h2><p>El SDK cose las lentes y aplica estabilización. Después podrás encuadrar y editar.</p><button class="primary" id="prepare-asset">Preparar vídeo</button><p id="prepare-hint" class="muted"></p></div>
+          <span id="preview-badge" class="preview-badge" hidden></span>
+        </div>
+        <div class="preview-footer"><span id="preview-meta">INSV · MP4 · MOV</span><div id="frame-controls" hidden><label for="frame-time">Segundo</label><input id="frame-time" type="number" min="0" step="0.1" value="0"><button id="refresh-frame" class="quiet small">Actualizar encuadre</button></div><span class="preview-note" id="preview-note">Vista previa del material original</span></div>
+      </section>
+
+      <section class="timeline panel" aria-label="Montaje editable">
+        <div class="timeline-heading"><div><span class="eyebrow">02 / MONTAJE</span><h2 id="plan-title">El lienzo de tu historia</h2></div><span id="plan-duration" class="duration">00:00</span></div>
+        <p id="plan-explanation" class="plan-explanation">Construye un montaje manual o pide una propuesta a Codex.</p>
+        <div id="clip-list" class="clip-list"><div class="timeline-empty"><span aria-hidden="true">＋</span> Tus cortes y encuadres aparecerán aquí</div></div>
+        <div class="timeline-bottom"><span id="clip-count">0 clips</span><label>Formato <select id="output-preset" disabled><option value="landscape">16:9 · Horizontal</option><option value="portrait">9:16 · Vertical</option><option value="square">1:1 · Cuadrado</option><option value="360">2:1 · 360°</option></select></label><label>FPS <select id="output-fps" disabled><option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option></select></label></div>
+      </section>
+      <section id="job-panel" class="job-panel panel" aria-label="Tareas" hidden><div class="job-panel-title"><h2>Actividad</h2><span>Procesamiento local</span></div><div id="jobs"></div></section>
+    </section>
+
+    <aside class="director panel" aria-label="Asistente y ajustes">
+      <div class="director-heading"><span class="assistant-mark" aria-hidden="true">✳</span><div><h2>Tu director de edición</h2><span>Propuestas con Codex</span></div><span id="codex-status" class="status-dot" title="Comprobando Codex"></span></div>
+      <div class="director-body">
+        <p class="director-intro">Tú cuentas la idea.<br><strong>Codex propone el montaje.</strong></p>
+        <label class="field-label" for="prompt">¿Qué quieres crear?</label>
+        <textarea id="prompt" rows="5" placeholder="Crea 15 segundos en vertical 9:16. Usa los primeros 5 segundos de tres clips; alterna ángulos de 0°, 45° y −45° con un campo visual de 90°."></textarea>
+        <div class="prompt-suggestions"><button data-prompt="Crea hasta 15 segundos en vertical 9:16, usando cortes de hasta 3 segundos desde el inicio de los clips disponibles. Alterna ángulos de 0° y 45°, con campo visual de 90°.">Cortes en vertical</button><button data-prompt="Crea una secuencia en 16:9, usando hasta 5 segundos desde el inicio de cada clip y encuadres fijos de 100° de campo visual. Conserva el audio original.">Encuadre amplio</button></div>
+        <p class="assistant-scope">Sin fotogramas, Codex conoce tiempos y metadatos; no ve el contenido de tus vídeos.</p>
+        <details class="model-details"><summary>Opciones del asistente</summary><label class="field-label" for="model">Modelo de Codex (opcional)</label><input id="model" placeholder="Predeterminado de Codex" autocomplete="off"><label class="check frame-opt-in"><input type="checkbox" id="include-frames"> Incluir fotogramas de referencia</label><p>Se comparten hasta 8 fotogramas frontales de los primeros 4 vídeos con el proveedor del modelo. Son referencias puntuales; no un análisis completo del vídeo. Sin esta opción, se envían tu instrucción y los metadatos del material.</p></details>
+        <button id="generate-plan" class="primary wide" disabled>Proponer montaje <span aria-hidden="true">↗</span></button>
+        <p class="privacy-note">Revisa la propuesta y exporta cuando esté lista.</p>
+      </div>
+      <div class="inspector-heading"><span class="eyebrow">03 / AJUSTES DEL CLIP</span><h2 id="inspector-title">Hazlo tuyo</h2></div>
+      <div id="inspector-empty" class="inspector-empty">Selecciona un clip del montaje para ajustar sus tiempos y su encuadre.</div>
+      <form id="clip-inspector" class="clip-inspector" hidden>
+        <div class="field-pair"><label>Entrada (s)<input name="start" type="number" min="0" step="any" required></label><label>Salida (s)<input name="end" type="number" min="0" step="any" required></label></div>
+        <div class="field-pair"><label>Giro / yaw (°)<input name="yaw" type="number" min="-180" max="180" step="any" required></label><label>Inclinación (°)<input name="pitch" type="number" min="-89" max="89" step="any" required></label></div>
+        <div class="field-pair"><label>Campo visual (°)<input name="fov" type="number" min="30" max="150" step="any" required></label><label>Velocidad<input name="speed" type="number" min="0.25" max="4" step="any" required></label></div>
+        <label class="check"><input name="mute" type="checkbox"> Silenciar audio del clip</label><p class="inspector-hint">Giro, inclinación y campo visual se aplican a vídeos 360° en una exportación plana.</p>
+        <div class="clip-order-actions"><button type="button" id="duplicate-clip" class="quiet">Duplicar</button><button type="button" id="move-clip-before" class="quiet" aria-label="Mover clip antes">← Antes</button><button type="button" id="move-clip-after" class="quiet" aria-label="Mover clip después">Después →</button></div><div class="inspector-actions"><button type="submit" class="secondary">Aplicar ajustes</button><button type="button" id="remove-clip" class="quiet danger">Quitar clip</button></div>
+      </form>
+      <div class="capabilities"><span id="ffmpeg-cap">FFmpeg · comprobando</span><span id="sdk-cap">SDK · comprobando</span></div>
+    </aside>
+  </main>
+
+  <dialog id="import-dialog">
+    <form id="import-form"><div class="dialog-heading"><div><span class="eyebrow">AÑADIR A LA BIBLIOTECA</span><h2>Importar material</h2></div><button type="button" id="close-import" class="square" aria-label="Cerrar importación">×</button></div><p>Introduce las rutas completas de tus vídeos, una por línea. Para archivos INSV de dos lentes, conserva ambos originales juntos.</p>
+      <label class="field-label" for="scan-directory">Buscar en una carpeta</label><div class="scan-row"><input id="scan-directory" placeholder="D:\Mis vídeos"><button type="button" id="scan" class="secondary">Buscar INSV</button></div>
+      <label class="field-label" for="import-paths">Rutas de los archivos</label><textarea id="import-paths" rows="6" placeholder="D:\Mis vídeos\VID_20260101_120000_00_001.insv" required></textarea>
+      <label class="field-label" for="import-projection">Para MP4 y MOV</label><select id="import-projection"><option value="flat">Vídeo plano / ya reencuadrado</option><option value="equirectangular">Vídeo 360° equirectangular (2:1)</option></select><p class="muted">Los INSV se detectan automáticamente. Selecciona 360° solo si el MP4 ya está cosido.</p>
+      <p id="import-status" class="muted" role="status" hidden></p><div class="dialog-actions"><button type="button" id="cancel-import" class="quiet">Cancelar</button><button type="submit" id="confirm-import" class="primary">Importar vídeos</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

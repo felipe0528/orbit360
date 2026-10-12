@@ -1,0 +1,54 @@
+# Validación local
+
+Fecha de pruebas: 12 de octubre de 2026. Entorno: Windows x64, MediaSDK 3.1.5 y MetadataSDK 2.0.2 del ZIP proporcionado por el usuario. Las fuentes originales se abrieron en modo de lectura. Este documento omite rutas personales, nombres de clips, números de serie, coordenadas y contenido audiovisual privado.
+
+## Unión de lentes y FlowState
+
+Los modelos y las versiones de firmware se comprobaron con `MetaDataSDKDemo`, además de inspeccionar las pistas con FFprobe. La exportación usa el ejecutable privado `MediaSDKTest.exe`, óptica `optflow`, FlowState activado y salida panorámica de 1920 × 960. El resultado se comprueba con FFprobe y se decodifica una imagen con FFmpeg.
+
+| Cámara | Firmware de la muestra | Fuente inspeccionada | Resultado de la prueba |
+| --- | --- | --- | --- |
+| ONE X2 | `v1.0.62_build2` | Dos archivos H.264 de 2880 × 2880, 24 fps; unos 1,75 s | Exportación aprobada: H.264, 1920 × 960, 24 fps, 41 fotogramas, AAC y 1,770667 s. El SDK informó `flowstate: ON`. |
+| X3 | `v1.0.35_build2` | Dos archivos H.264 de 2880 × 2880, 24 fps; unos 1,92 s | Exportación aprobada: H.264, 1920 × 960, 24 fps, 46 fotogramas, AAC y 1,984 s. El SDK informó `flowstate: ON`. |
+| X4 | `v1.4.8_build1` | Un archivo con dos pistas HEVC de 3840 × 3840, 24 fps y 2 s | Exportación aprobada: H.264, 1920 × 960, 24 fps, 49 fotogramas, AAC y 2,041667 s. El SDK informó `flowstate: ON`. |
+
+Las tres exportaciones aprobadas usaron `h264_nvenc` y tardaron aproximadamente 142 segundos (X2), 68 segundos (X3) y 67 segundos (X4) en esta máquina. Estos tiempos corresponden a estas pruebas; no son una estimación general del rendimiento ni una promesa de procesamiento en tiempo real. Se inspeccionaron imágenes de los tres panoramas. No se realizó una evaluación exhaustiva de calidad de costura, horizonte o estabilización en tomas largas.
+
+Las pequeñas diferencias de duración entre fuente y salida quedan registradas arriba. La exportación conserva audio y el SDK puede ajustar los tiempos del contenedor. No se afirma igualdad exacta de número de fotogramas o duración.
+
+## Compatibilidad declarada y alcance
+
+El `CameraType` del CameraSDK 2.1.8 enumera ONE X, ONE R, ONE RS, ONE X2, X3, X4, X5, X4 Air y X6. No enumera «X5 Air». Que un modelo aparezca en el paquete no valida todos sus modos, resoluciones, firmwares o accesorios, ni demuestra que se haya probado físicamente aquí. X5, X4 Air y X6 no cuentan con muestras verificadas en estas pruebas.
+
+La aplicación permite usar un SDK obtenido y actualizado por el usuario. Su arquitectura separa el adaptador del SDK, la unión de lentes, el reencuadre y la edición para poder ampliar compatibilidad. Esto no constituye una garantía universal de compatibilidad futura.
+
+## Adaptador C++ experimental
+
+El código de `native/` se escribió para las firmas públicas inspeccionadas del MediaSDK 3.1.5. No se pudo compilar en la máquina de desarrollo porque no estaban disponibles MSVC ni CMake. La prueba del ejecutable del proveedor no equivale a una compilación o validación del adaptador original.
+
+La finalización asíncrona se interpreta cuando el progreso alcanza 100, siguiendo el ejemplo incluido por el proveedor. El estado de los callbacks permanece vivo durante la destrucción del objeto de unión. La API pública inspeccionada no proporciona otra operación de espera final. Por ello, el proceso superior también debe comprobar que el resultado existe, se puede abrir con FFprobe y contiene vídeo válido.
+
+El sample puede terminar con código cero después de ciertos errores de exportación. También imprime mensajes internos de nivel de error en trabajos que sí terminan correctamente. La aplicación exige una señal de progreso del 100 % y validación del archivo; no considera que cualquier texto de diagnóstico sea un fallo fatal.
+
+## Instalación privada del SDK
+
+`setup-sdk.ps1` y `build-native.ps1` pasaron la comprobación sintáctica de PowerShell. Con archivos de prueba aislados se verificó:
+
+- Extracción de un ZIP de MediaSDK y de un ZIP exterior que lo contiene.
+- Conservación de otras opciones de configuración al guardar el SDK.
+- Rechazo de un destino existente para evitar sobrescribir instalaciones.
+- Rechazo de rutas de ZIP que intenten escapar de la carpeta de extracción.
+
+Los ZIP, DLL, bibliotecas, modelos, encabezados propietarios, muestras originales y resultados privados quedan fuera del repositorio público. El paquete inspeccionado no incluía un archivo de licencia o guía de redistribución; no se ha inferido permiso para redistribuirlo.
+
+## Aplicación completa y Codex
+
+Se completó el flujo real por la API local de Orbit360 con una fuente X3: importación de la pareja INSV, preparación panorámica de **3840 × 1920**, generación del plan con la sesión autenticada de Codex CLI 0.146.1 y exportación final **1080 × 1920, 24 fps, H.264 + AAC, 1,5 segundos**. Codex recibió solo instrucciones y metadatos, sin fotogramas. El plan solicitó yaw 30°, pitch 0°, FOV horizontal 90° y velocidad normal. El MP4 se comprobó con ffprobe y una imagen decodificada; el servidor respondió 206 a una petición HTTP Range de reproducción.
+
+También se probó Codex con material sintético para proponer un montaje vertical de dos planos y tres segundos. Devolvió JSON válido con los tiempos y ángulos solicitados. No se probó una llamada real a Codex con imágenes; la opción de fotogramas está implementada, pero su resultado depende de las capacidades y acceso del modelo seleccionado.
+
+La suite `npm test` pasó **6 pruebas sin omisiones** en Windows: validación estricta del plan, proyección, rechazo de campos/archivos desconocidos, protección de la API local y exportaciones FFmpeg reales con cortes, velocidad, audio, silencio, concatenación y formato vertical. Incluye detección de reemplazo de originales por tamaño/fecha. `npm run check` pasó.
+
+La interfaz se verificó en navegador a tamaño de escritorio y a 390 píxeles de ancho. Se probaron errores de importación, guardado de ajustes, duplicación, reordenación y eliminación de planos; la vista previa de un montaje vertical produjo una imagen de 270 × 480. Se corrigieron el desbordamiento móvil y una restricción errónea sobre tiempos decimales. La consola no mostró errores durante esas comprobaciones.
+
+La exportación probada no acredita seguimiento de sujetos, keyframes, edición de tomas largas ni compatibilidad con cada modo de cámara. Esas funciones y matrices de cobertura siguen fuera de lo validado en esta versión.

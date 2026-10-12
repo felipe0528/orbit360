@@ -1,0 +1,17 @@
+.local/
+.orbit360/
+node_modules/
+native/build/
+build/
+*.insv
+*.insp
+*.mp4
+*.mov
+*.dll
+*.lib
+*.exe
+*.zip
+*.log
+.env
+.env.*
+!.env.example
