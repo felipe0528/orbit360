@@ -2,7 +2,7 @@
 
 Editor local y open source para vídeos Insta360, con propuestas de montaje de **Codex** y exportación reproducible a MP4. Interfaz en español. Windows x64 es el entorno objetivo para INSV; el montaje de MP4 funciona con Node.js y FFmpeg.
 
-**Versión 0.1: funcional, experimental.** El código de la aplicación es MIT. Insta360 Media SDK se aporta por separado y no es open source. Este proyecto independiente no está afiliado a Insta360 ni a OpenAI.
+**Versión 0.2: funcional, experimental.** El código de la aplicación es MIT. Insta360 Media SDK se aporta por separado y no es open source. Este proyecto independiente no está afiliado a Insta360 ni a OpenAI.
 
 ## Qué hace
 
@@ -10,7 +10,9 @@ Editor local y open source para vídeos Insta360, con propuestas de montaje de *
 - Une las lentes con Media SDK y solicita FlowState; conserva los originales y crea una copia panorámica local de 3840 × 1920.
 - Conecta con tu sesión de Codex CLI para proponer cortes, orden, velocidad, silencio y encuadre fijo por plano.
 - Permite revisar y modificar el plan antes de exportar. No ejecuta comandos propuestos por el modelo.
-- Reencuadra con giro, inclinación y campo visual; exporta horizontal, vertical, cuadrado o equirectangular 2:1 con H.264 y AAC.
+- Recorta intervalos precisos, divide clips y permite duplicar, quitar o reordenar segmentos sin modificar los originales.
+- Reencuadra con giro, inclinación y campo visual; exporta 16:9, 9:16, 3:4, cuadrado o equirectangular 2:1 con H.264 y AAC.
+- La opción **360° · YouTube / VR** añade metadatos esféricos V1 y V2 al MP4 final, después de los cortes, para subirlo directamente sin un inyector externo.
 - Guarda proyecto, caché, planes y exportaciones dentro de `.local/`, excluido de Git. Ofrece progreso y cancelación.
 
 ## Inicio rápido
@@ -46,6 +48,16 @@ El camino probado usa `MediaSDKTest.exe` de tu SDK como proceso separado. Su có
 
 Para probar sin cámara: `npm run demo` genera un patrón sintético de ocho segundos. Importa la ruta indicada como panorámico.
 
+## Recortes y YouTube 360°
+
+Para extraer del segundo 5 al 7, selecciona el clip, escribe **Entrada = 5** y **Salida = 7**, y guarda los ajustes. A velocidad 1× el resultado dura dos segundos. **Dividir clip** crea dos segmentos en el tiempo del original indicado; puedes recortar cada uno, quitarlo, duplicarlo o cambiar su orden. Se aceptan segundos decimales. La precisión efectiva depende de los fotogramas y de la fuente preparada por el SDK.
+
+Elige **360° · YouTube / VR** para conservar toda la esfera, incluso en montajes de varios segmentos. Orbit360 genera un MP4 3840 × 1920 con H.264, AAC y señalización esférica monoscópica de [Google Spatial Media V1](https://github.com/google/spatial-media/blob/master/docs/spherical-video-rfc.md) y [V2](https://github.com/google/spatial-media/blob/master/docs/spherical-video-v2-rfc.md). Se comprueban los metadatos y su reconocimiento por ffprobe antes de declarar completada la exportación. Descarga ese MP4 y súbelo directamente a YouTube; no necesita un archivo de metadatos separado. Los MP4 exportados con versiones anteriores deben volver a exportarse para recibir estas marcas.
+
+La salida se contrastó con el lector oficial de Google; no se hizo una subida real a YouTube. YouTube termina de procesar la reproducción 360° después de recibir el vídeo; consulta su [guía de vídeos esféricos](https://support.google.com/youtube/answer/6178631?hl=es). El reproductor HTML de Orbit360 muestra el panorama extendido, no una esfera interactiva.
+
+Los formatos **9:16, 16:9 y 3:4** generan vídeo plano del encuadre elegido. El exportador elimina marcas esféricas heredadas para evitar que una plataforma lo interprete como 360°. También puedes pedir a Codex: «Conserva del segundo 5 al 7 y del 12 al 15, en ese orden, para YouTube 360°».
+
 ## Codex y privacidad
 
 Se usa [`codex exec` con un esquema JSON](https://developers.openai.com/codex/noninteractive/), en modo de solo lectura, con herramientas de shell, aplicaciones, plugins, navegador y búsqueda desactivadas, sin cargar la configuración personal de herramientas. Reutiliza la autenticación de Codex; Orbit360 no almacena ni solicita tu contraseña. El campo modelo es opcional: vacío conserva la elección predeterminada del CLI limpio, no el modelo de otra conversación abierta.
@@ -61,7 +73,7 @@ La comprobación de cámaras y resultados está en [docs/validation.md](docs/val
 - La compatibilidad de INSV depende de Media SDK, firmware, modo y accesorios. No se promete soporte universal para la cámara más reciente. Actualizar Studio no actualiza automáticamente el SDK que usa Orbit360.
 - Límite inicial: 100 planos, una hora de salida, hasta 4096 píxeles por dimensión y 24/25/30/50/60 fps. Preparación INSV a 3840 × 1920: no preserva la resolución nativa 8K.
 - Reencuadre fijo por plano; aún no hay seguimiento de sujetos, movimiento suave por keyframes, transiciones, subtítulos, música añadida, control físico de cámara ni importación de proyectos Studio.
-- La salida panorámica conserva geometría 2:1; yaw/pitch/FOV solo afectan la salida plana. No se inyectan metadatos esféricos específicos de YouTube/VR.
+- La salida panorámica conserva geometría 2:1 y metadatos esféricos; yaw/pitch/FOV solo afectan la salida plana. El procesamiento final de cada plataforma ocurre después de la subida.
 - Los cambios del archivo original se detectan por tamaño y fecha de modificación; debes reimportarlo. No se hace un hash completo de vídeos grandes. Cerrar el servidor interrumpe tareas; al reiniciar se marcan como fallidas y pueden repetirse.
 - Caché, imágenes opt-in y resultados se conservan localmente. No hay limpieza automática ni reanudación parcial de renders. Borra solo las carpetas de trabajos que ya no necesites, con el servidor cerrado.
 
@@ -72,7 +84,7 @@ npm test
 npm run check
 ```
 
-Las pruebas generan vídeos sintéticos temporales y verifican cortes, audio/silencio, velocidad, reencuadre, concatenación, validación del plan y protección HTTP. FFmpeg es necesario para las pruebas audiovisuales. No usan Codex ni SDK de pago en CI.
+Las pruebas generan vídeos sintéticos temporales y verifican fotogramas y audio de los intervalos seleccionados, velocidad, reencuadre, concatenación, metadatos 360°, validación del plan y protección HTTP. El escritor de metadatos verifica offsets de pistas de 32 y 64 bits y conserva los paquetes audiovisuales sin recodificarlos. FFmpeg es necesario para las pruebas audiovisuales. No usan Codex ni SDK de pago en CI.
 
 Variables opcionales: `ORBIT_DATA_DIR`, `ORBIT_FFMPEG`, `ORBIT_FFPROBE`, `ORBIT_CODEX_JS` (ruta de `@openai/codex/bin/codex.js`) u `ORBIT_CODEX_EXE` (ejecutable nativo, no un `.cmd`). Para SDK: configura `sdkExecutable`, `sdkKind` (`sample` o `bridge`), `sdkModels` y `sdkRoot` en `.local/config.json`. El backend está separado en `media.js`, `plan.js`, `planner.js` y `server.js` para incorporar otros proveedores en el futuro.
 

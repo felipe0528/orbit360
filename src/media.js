@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { run } from './process.js';
 import { videoFilter, audioTempo } from './plan.js';
+import { injectSphericalMetadata, stripSphericalMetadata } from './spherical.js';
 
 export const ffmpeg = process.env.ORBIT_FFMPEG || 'ffmpeg';
 export const ffprobe = process.env.ORBIT_FFPROBE || 'ffprobe';
@@ -12,7 +13,8 @@ export async function probe(file) {
   const duration = Number(video?.duration || data.format?.duration);
   if (!video || !Number.isFinite(duration) || duration <= 0) throw new Error('No se encontró un video con duración válida.');
   const [a,b] = (video.avg_frame_rate || '0/1').split('/').map(Number);
-  return {duration,width:video.width,height:video.height,fps:b ? a/b : 0,hasAudio:data.streams.some(s=>s.codec_type==='audio'),codec:video.codec_name};
+  const sphericalProjection=video.side_data_list?.find(item=>item.side_data_type==='Spherical Mapping')?.projection || null;
+  return {duration,width:video.width,height:video.height,fps:b ? a/b : 0,hasAudio:data.streams.some(s=>s.codec_type==='audio'),codec:video.codec_name,sphericalProjection};
 }
 export async function importAssets(paths, projection, current) {
   if (!Array.isArray(paths) || !paths.length || paths.length > 200) throw new Error('Indica entre 1 y 200 rutas de video.');
@@ -108,13 +110,22 @@ export async function exportVideo(plan, assets, directory, {signal, progress}) {
     completed+=duration;
   }
   await fs.writeFile(path.join(directory,'concat.txt'),plan.clips.map((_,i)=>`file 'segment-${i}.mp4'`).join('\n'));
-  const output=path.join(directory,'export.mp4');
-  await run(ffmpeg,['-hide_banner','-nostdin','-y','-f','concat','-safe','1','-i',path.join(directory,'concat.txt'),'-c','copy','-movflags','+faststart',output],{signal,timeout:3600000});
+  const output=path.join(directory,'export.mp4'), intermediate=path.join(directory,'export.unmarked.mp4');
+  await run(ffmpeg,['-hide_banner','-nostdin','-y','-f','concat','-safe','1','-i',path.join(directory,'concat.txt'),'-c','copy','-movflags','+faststart',intermediate],{signal,timeout:3600000});
+  const isSpherical=plan.output.projection==='equirectangular';
+  progress(97,isSpherical?'Añadiendo metadatos 360° para YouTube…':'Finalizando el MP4…');
+  const metadata=isSpherical
+    ? await injectSphericalMetadata(intermediate,output,{width:plan.output.width,height:plan.output.height,signal})
+    : await stripSphericalMetadata(intermediate,output,{signal});
   const info=await probe(output);
   if (Math.abs(info.duration-total)>Math.max(0.5,plan.clips.length/plan.output.fps*2)) throw new Error('La duración exportada no coincide con el montaje.');
+  if (info.width!==plan.output.width || info.height!==plan.output.height) throw new Error('Las dimensiones exportadas no coinciden con el montaje.');
+  if (isSpherical && info.sphericalProjection!=='equirectangular') throw new Error('ffprobe no reconoció la proyección 360° del MP4 final.');
+  if (!isSpherical && info.sphericalProjection) throw new Error('El vídeo plano conserva una marca 360° no válida.');
   await fs.writeFile(path.join(directory,'plan.json'),JSON.stringify(plan,null,2));
   for (let i=0;i<plan.clips.length;i++) await fs.rm(path.join(directory,`segment-${i}.mp4`),{force:true});
-  return {path:output,...info};
+  await fs.rm(intermediate,{force:true});
+  return {path:output,...info,...(isSpherical?{spherical:{...metadata,verified:true}}:{})};
 }
 export async function frame(asset,{time=0,yaw=0,pitch=0,fov=90,width=480,height=270,projection='flat'},destination,{signal}={}) {
   for (const [value,min,max] of [[time,0,asset.duration],[yaw,-180,180],[pitch,-89,89],[fov,30,150]]) if(!Number.isFinite(value)||value<min||value>max) throw new Error('Parámetro de vista previa no válido.');

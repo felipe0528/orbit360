@@ -6,7 +6,7 @@
   const labels = { queued: 'En cola', running: 'En curso', complete: 'Completado', failed: 'Error', cancelled: 'Cancelado' };
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const seconds = value => Number.isFinite(Number(value)) ? Number(value) : 0;
-  const time = value => { const v = Math.max(0, seconds(value)); return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(Math.floor(v % 60)).padStart(2, '0')}`; };
+  const time = value => { const ms = Math.round(Math.max(0, seconds(value)) * 1000); const fraction = ms % 1000 ? `,${String(ms % 1000).padStart(3, '0').replace(/0+$/, '')}` : ''; return `${String(Math.floor(ms / 60000)).padStart(2, '0')}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}${fraction}`; };
   const asset = id => ui.state.assets.find(a => a.id === id);
   const currentAsset = () => asset(ui.assetId);
   const currentClip = () => ui.state.plan?.clips?.[ui.clipIndex];
@@ -32,6 +32,7 @@
     $('export').disabled = !ui.state.plan?.clips?.length || hasActiveJob() || ui.busy;
     $('prepare-asset').disabled = !ui.state.capabilities.sdk || hasActiveJob() || ui.busy;
     $('duplicate-clip').disabled = !currentClip() || (ui.state.plan?.clips?.length || 0) >= 100 || ui.busy;
+    $('split-clip').disabled = !currentClip() || (ui.state.plan?.clips?.length || 0) >= 100 || ui.busy;
     $('move-clip-before').disabled = !currentClip() || ui.clipIndex === 0 || ui.busy;
     $('move-clip-after').disabled = !currentClip() || ui.clipIndex === (ui.state.plan?.clips?.length || 0) - 1 || ui.busy;
     $('output-preset').disabled = !ui.state.plan;
@@ -94,10 +95,11 @@
     $('clip-list').innerHTML = clips.length ? clips.map((clip, i) => `<button class="timeline-clip ${ui.clipIndex === i ? 'active' : ''}" data-clip="${i}" aria-label="Editar clip ${i + 1}"><div class="clip-top"><span>${String(i + 1).padStart(2, '0')}</span><span>${time((clip.end - clip.start) / (clip.speed || 1))}</span></div><div class="clip-name">${esc(asset(clip.assetId)?.name || 'Material no encontrado')}</div><div class="clip-bottom">${time(clip.start)} → ${time(clip.end)} · ${clip.speed || 1}×${clip.mute ? ' · sin audio' : ''}</div></button>`).join('') : '<div class="timeline-empty"><span aria-hidden="true">＋</span> Tus cortes y encuadres aparecerán aquí</div>';
     if (plan) {
       const out = plan.output;
-      $('output-preset').value = out.projection === 'equirectangular' ? '360' : out.width > out.height ? 'landscape' : out.width < out.height ? 'portrait' : 'square';
+      $('output-preset').value = out.projection === 'equirectangular' ? '360' : out.width * 4 === out.height * 3 ? 'portrait34' : out.width > out.height ? 'landscape' : out.width < out.height ? 'portrait' : 'square';
       if (![...$('output-fps').options].some(o => Number(o.value) === out.fps)) $('output-fps').add(new Option(String(out.fps), String(out.fps)));
       $('output-fps').value = String(out.fps);
     }
+    $('output-hint').hidden = plan?.output.projection !== 'equirectangular';
     renderInspector(); updateButtons();
   }
 
@@ -111,6 +113,7 @@
     $('move-clip-before').disabled = ui.clipIndex === 0;
     $('move-clip-after').disabled = ui.clipIndex === ui.state.plan.clips.length - 1;
     $('duplicate-clip').disabled = ui.state.plan.clips.length >= 100;
+    $('split-time').value = Number(((clip.start + clip.end) / 2).toFixed(6));
   }
 
   function renderJobs() {
@@ -119,7 +122,7 @@
     $('jobs').innerHTML = jobs.map(j => {
       const active = ['queued', 'running'].includes(j.status);
       const value = j.progress == null ? null : Math.max(0, Math.min(100, Number(j.progress) || 0));
-      return `<article class="job ${esc(j.status)}"><div class="job-top"><span class="job-name">${esc(({ plan: 'Propuesta de Codex', prepare: 'Preparación de INSV', export: 'Exportación de vídeo' })[j.type] || j.type)}</span><span>${esc(labels[j.status] || j.status)}${active && value !== null ? ` · ${Math.round(value)}%` : ''}</span></div><p class="job-message">${esc(j.error || j.message || '')}</p>${active ? `<progress max="100" ${value !== null ? `value="${value}"` : ''} aria-label="Progreso"></progress>` : ''}<div class="job-actions">${active ? `<button class="quiet" data-cancel="${esc(j.id)}">Cancelar tarea</button>` : ''}${j.status === 'complete' && j.type === 'export' ? `<a href="${esc(mediaUrl('exports', j.id))}" target="_blank" rel="noopener">Reproducir ↗</a><a href="${esc(mediaUrl('exports', j.id, '&download=1'))}" download>Descargar vídeo</a>` : ''}</div></article>`;
+      return `<article class="job ${esc(j.status)}"><div class="job-top"><span class="job-name">${esc(({ plan: 'Propuesta de Codex', prepare: 'Preparación de INSV', export: 'Exportación de vídeo' })[j.type] || j.type)}</span><span>${esc(labels[j.status] || j.status)}${active && value !== null ? ` · ${Math.round(value)}%` : ''}</span></div><p class="job-message">${esc(j.error || j.message || '')}</p>${j.status === 'complete' && j.type === 'export' && j.result?.spherical?.verified === true ? '<p class="job-spherical">360° · Metadatos esféricos verificados en el MP4. Listo para subir a YouTube o usar en VR.</p>' : ''}${active ? `<progress max="100" ${value !== null ? `value="${value}"` : ''} aria-label="Progreso"></progress>` : ''}<div class="job-actions">${active ? `<button class="quiet" data-cancel="${esc(j.id)}">Cancelar tarea</button>` : ''}${j.status === 'complete' && j.type === 'export' ? `<a href="${esc(mediaUrl('exports', j.id))}" target="_blank" rel="noopener">Reproducir ↗</a><a href="${esc(mediaUrl('exports', j.id, '&download=1'))}" download>Descargar vídeo</a>` : ''}</div></article>`;
     }).join('');
     updateButtons();
   }
@@ -146,6 +149,15 @@
     const result = await api('/api/plan', { method: 'PUT', body: JSON.stringify({ plan }) });
     ui.state.plan = result.plan || plan; renderPlan();
   }
+  function editedClip() {
+    const clip = structuredClone(currentClip());
+    const form = $('clip-inspector');
+    for (const key of ['start', 'end', 'yaw', 'pitch', 'fov', 'speed']) clip[key] = Number(form.elements.namedItem(key).value);
+    clip.mute = form.elements.namedItem('mute').checked;
+    if (clip.end - clip.start < .1 - 1e-9) throw new Error('Cada segmento debe durar al menos 0,1 segundos en el original.');
+    if (clip.end > seconds(asset(clip.assetId)?.duration) + .03) throw new Error('La salida supera la duración del vídeo.');
+    return clip;
+  }
   function selectClip(index) { ui.clipIndex = index; const clip = currentClip(); if (clip) { ui.assetId = clip.assetId; $('frame-time').value = clip.start; } renderPlan(); renderAssets(); renderPreview(); if (ui.view === 'video' && currentAsset()?.ready !== false) { try { $('video').currentTime = clip.start; } catch {} } }
   function openImport() { $('import-status').hidden = true; $('import-dialog').showModal(); $('import-paths').focus(); }
 
@@ -167,13 +179,14 @@
   $('frame').onerror = () => { if (ui.view === 'frame') notice('No se pudo generar el fotograma. Comprueba que el material esté preparado y que FFmpeg esté disponible.', true); };
   $('video').onerror = () => { if (ui.view === 'video' && currentAsset()) notice('Este formato no se puede reproducir en el navegador. Usa la vista Encuadre para revisar un fotograma.', true); };
   $('clip-list').onclick = event => { const clip = event.target.closest('[data-clip]'); if (clip) selectClip(Number(clip.dataset.clip)); };
-  $('clip-inspector').onsubmit = event => { event.preventDefault(); action(event.submitter, async () => { const plan = structuredClone(ui.state.plan); const clip = plan.clips[ui.clipIndex]; const form = $('clip-inspector'); for (const key of ['start', 'end', 'yaw', 'pitch', 'fov', 'speed']) clip[key] = Number(form.elements.namedItem(key).value); clip.mute = form.elements.namedItem('mute').checked; if (clip.end <= clip.start) throw new Error('La salida debe ser posterior a la entrada.'); if (clip.end > seconds(asset(clip.assetId)?.duration) + .05) throw new Error('La salida supera la duración del vídeo.'); await savePlan(plan); $('frame-time').value = clip.start; if (ui.view === 'frame') loadFrame(); notice('Ajustes del clip guardados.'); }); };
+  $('clip-inspector').onsubmit = event => { event.preventDefault(); action(event.submitter, async () => { const plan = structuredClone(ui.state.plan); const clip = editedClip(); plan.clips[ui.clipIndex] = clip; await savePlan(plan); $('frame-time').value = clip.start; if (ui.view === 'frame') loadFrame(); notice('Ajustes del clip guardados.'); }); };
+  $('split-clip').onclick = () => { if (!$('clip-inspector').reportValidity()) return; action($('split-clip'), async () => { const plan = structuredClone(ui.state.plan); const clip = editedClip(); const split = Number($('split-time').value); if (!$('split-time').value.trim() || !Number.isFinite(split) || split <= clip.start || split >= clip.end) throw new Error('El punto de división debe estar entre la entrada y la salida del clip.'); if (split - clip.start < .1 - 1e-9 || clip.end - split < .1 - 1e-9) throw new Error('Deja al menos 0,1 segundos del original a cada lado de la división.'); if (plan.clips.length >= 100) throw new Error('El montaje admite un máximo de 100 clips.'); plan.clips.splice(ui.clipIndex, 1, { ...clip, end: split }, { ...clip, start: split }); await savePlan(plan); selectClip(ui.clipIndex); notice(`Clip dividido en ${time(split)}. Ambos segmentos conservan encuadre, velocidad y audio.`); }); };
   $('remove-clip').onclick = () => action($('remove-clip'), async () => { const plan = structuredClone(ui.state.plan); if (plan.clips.length === 1) throw new Error('El montaje necesita al menos un clip. Crea otro montaje desde la biblioteca para reemplazarlo.'); plan.clips.splice(ui.clipIndex, 1); ui.clipIndex = Math.min(ui.clipIndex, plan.clips.length - 1); await savePlan(plan); selectClip(ui.clipIndex); });
   $('duplicate-clip').onclick = () => action($('duplicate-clip'), async () => { const plan = structuredClone(ui.state.plan); plan.clips.splice(ui.clipIndex + 1, 0, structuredClone(plan.clips[ui.clipIndex])); ui.clipIndex += 1; await savePlan(plan); selectClip(ui.clipIndex); });
   async function moveClip(direction, button) { await action(button, async () => { const plan = structuredClone(ui.state.plan); const destination = ui.clipIndex + direction; if (destination < 0 || destination >= plan.clips.length) return; [plan.clips[ui.clipIndex], plan.clips[destination]] = [plan.clips[destination], plan.clips[ui.clipIndex]]; ui.clipIndex = destination; await savePlan(plan); selectClip(ui.clipIndex); }); }
   $('move-clip-before').onclick = () => moveClip(-1, $('move-clip-before'));
   $('move-clip-after').onclick = () => moveClip(1, $('move-clip-after'));
-  $('output-preset').onchange = () => action(null, async () => { const plan = structuredClone(ui.state.plan); const presets = { landscape: [1920, 1080, 'flat'], portrait: [1080, 1920, 'flat'], square: [1080, 1080, 'flat'], '360': [3840, 1920, 'equirectangular'] }; const [width, height, projection] = presets[$('output-preset').value]; plan.output = { ...plan.output, width, height, projection }; try { await savePlan(plan); if (ui.view === 'frame') renderPreview(); } catch (error) { renderPlan(); throw error; } });
+  $('output-preset').onchange = () => action(null, async () => { const plan = structuredClone(ui.state.plan); const presets = { landscape: [1920, 1080, 'flat'], portrait: [1080, 1920, 'flat'], portrait34: [1080, 1440, 'flat'], square: [1080, 1080, 'flat'], '360': [3840, 1920, 'equirectangular'] }; const [width, height, projection] = presets[$('output-preset').value]; plan.output = { ...plan.output, width, height, projection }; try { await savePlan(plan); if (ui.view === 'frame') renderPreview(); } catch (error) { renderPlan(); throw error; } });
   $('output-fps').onchange = () => action(null, async () => { const plan = structuredClone(ui.state.plan); plan.output.fps = Number($('output-fps').value); try { await savePlan(plan); } catch (error) { renderPlan(); throw error; } });
   $('export').onclick = () => action($('export'), async () => { await post('/api/export', { plan: ui.state.plan }); await refresh(); notice('Exportación iniciada. El vídeo estará disponible en Actividad.'); });
   $('jobs').onclick = event => { const button = event.target.closest('[data-cancel]'); if (button) action(button, async () => { await post(`/api/jobs/${encodeURIComponent(button.dataset.cancel)}/cancel`, {}); await refresh(); }); };

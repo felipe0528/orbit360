@@ -1,5 +1,5 @@
 {
-  "name": "orbit360", "version": "0.1.0", "private": true,
+  "name": "orbit360", "version": "0.2.0", "private": true,
   "description": "Local Insta360 video editor with Codex planning and reproducible FFmpeg exports",
   "type": "module", "engines": {"node": ">=22"}, "license": "MIT",
   "scripts": {"start": "node src/server.js", "test": "node --test", "demo": "node scripts/make-demo.js", "check": "node --check src/server.js && node --check public/app.js"}

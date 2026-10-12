@@ -4,5 +4,6 @@
 - **FFmpeg**: proceso externo instalado por el usuario. Sus condiciones dependen de cómo se compiló la distribución, incluidas las bibliotecas habilitadas. No se incluye ningún binario de FFmpeg. Véase [FFmpeg Legal](https://ffmpeg.org/legal.html).
 - **Codex CLI**: herramienta externa con sus propios términos y autenticación. No se distribuye ni se copian credenciales.
 - **REA**: herramienta MIT de análisis usada en desarrollo, [morluto/rea](https://github.com/morluto/rea). No se copia su código dentro de Orbit360 y no es necesaria para editar vídeos. El informe identifica la versión y las operaciones ejecutadas.
+- **Google Spatial Media**: las especificaciones públicas [V1](https://github.com/google/spatial-media/blob/master/docs/spherical-video-rfc.md) y [V2](https://github.com/google/spatial-media/blob/master/docs/spherical-video-v2-rfc.md) describen los metadatos 360°. Orbit360 contiene una implementación independiente. La herramienta de referencia de Google (Apache-2.0) se utilizó externamente para validar archivos y no se distribuye con la aplicación.
 
 La licencia MIT de Orbit360 no modifica las condiciones de ninguno de estos componentes. Los nombres Insta360 y Codex se usan para identificar interoperabilidad, sin afiliación ni respaldo oficial.

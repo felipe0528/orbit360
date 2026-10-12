@@ -42,7 +42,8 @@
         <div class="timeline-heading"><div><span class="eyebrow">02 / MONTAJE</span><h2 id="plan-title">El lienzo de tu historia</h2></div><span id="plan-duration" class="duration">00:00</span></div>
         <p id="plan-explanation" class="plan-explanation">Construye un montaje manual o pide una propuesta a Codex.</p>
         <div id="clip-list" class="clip-list"><div class="timeline-empty"><span aria-hidden="true">＋</span> Tus cortes y encuadres aparecerán aquí</div></div>
-        <div class="timeline-bottom"><span id="clip-count">0 clips</span><label>Formato <select id="output-preset" disabled><option value="landscape">16:9 · Horizontal</option><option value="portrait">9:16 · Vertical</option><option value="square">1:1 · Cuadrado</option><option value="360">2:1 · 360°</option></select></label><label>FPS <select id="output-fps" disabled><option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option></select></label></div>
+        <div class="timeline-bottom"><span id="clip-count">0 clips</span><label>Formato <select id="output-preset" disabled><option value="landscape">16:9 · Horizontal</option><option value="portrait">9:16 · Vertical</option><option value="portrait34">3:4 · Vertical</option><option value="square">1:1 · Cuadrado</option><option value="360">360° · YouTube / VR</option></select></label><label>FPS <select id="output-fps" disabled><option>24</option><option>25</option><option selected>30</option><option>50</option><option>60</option></select></label></div>
+        <p id="output-hint" class="output-hint" hidden>MP4 con metadatos esféricos incluidos · 2:1 · Conserva la esfera completa y los cortes del montaje.</p>
       </section>
       <section id="job-panel" class="job-panel panel" aria-label="Tareas" hidden><div class="job-panel-title"><h2>Actividad</h2><span>Procesamiento local</span></div><div id="jobs"></div></section>
     </section>
@@ -62,11 +63,14 @@
       <div class="inspector-heading"><span class="eyebrow">03 / AJUSTES DEL CLIP</span><h2 id="inspector-title">Hazlo tuyo</h2></div>
       <div id="inspector-empty" class="inspector-empty">Selecciona un clip del montaje para ajustar sus tiempos y su encuadre.</div>
       <form id="clip-inspector" class="clip-inspector" hidden>
+        <p class="trim-hint">Conserva un tramo del original: por ejemplo, entrada 5 y salida 7 exportan 2 segundos a velocidad normal.</p>
         <div class="field-pair"><label>Entrada (s)<input name="start" type="number" min="0" step="any" required></label><label>Salida (s)<input name="end" type="number" min="0" step="any" required></label></div>
         <div class="field-pair"><label>Giro / yaw (°)<input name="yaw" type="number" min="-180" max="180" step="any" required></label><label>Inclinación (°)<input name="pitch" type="number" min="-89" max="89" step="any" required></label></div>
         <div class="field-pair"><label>Campo visual (°)<input name="fov" type="number" min="30" max="150" step="any" required></label><label>Velocidad<input name="speed" type="number" min="0.25" max="4" step="any" required></label></div>
         <label class="check"><input name="mute" type="checkbox"> Silenciar audio del clip</label><p class="inspector-hint">Giro, inclinación y campo visual se aplican a vídeos 360° en una exportación plana.</p>
-        <div class="clip-order-actions"><button type="button" id="duplicate-clip" class="quiet">Duplicar</button><button type="button" id="move-clip-before" class="quiet" aria-label="Mover clip antes">← Antes</button><button type="button" id="move-clip-after" class="quiet" aria-label="Mover clip después">Después →</button></div><div class="inspector-actions"><button type="submit" class="secondary">Aplicar ajustes</button><button type="button" id="remove-clip" class="quiet danger">Quitar clip</button></div>
+        <div class="inspector-actions"><button type="submit" class="secondary">Aplicar ajustes</button><button type="button" id="remove-clip" class="quiet danger">Quitar clip</button></div>
+        <div class="split-controls"><label for="split-time">Dividir en el segundo del original</label><div class="split-row"><input id="split-time" type="number" min="0" step="any" aria-describedby="split-hint"><button type="button" id="split-clip" class="secondary">Dividir clip</button></div><p id="split-hint">Guarda los ajustes y crea dos segmentos consecutivos. Puedes recortar, quitar o reordenar cada uno.</p></div>
+        <div class="clip-order-actions"><button type="button" id="duplicate-clip" class="quiet">Duplicar</button><button type="button" id="move-clip-before" class="quiet" aria-label="Mover clip antes">← Antes</button><button type="button" id="move-clip-after" class="quiet" aria-label="Mover clip después">Después →</button></div>
       </form>
       <div class="capabilities"><span id="ffmpeg-cap">FFmpeg · comprobando</span><span id="sdk-cap">SDK · comprobando</span></div>
     </aside>

@@ -47,8 +47,28 @@ Se completó el flujo real por la API local de Orbit360 con una fuente X3: impor
 
 También se probó Codex con material sintético para proponer un montaje vertical de dos planos y tres segundos. Devolvió JSON válido con los tiempos y ángulos solicitados. No se probó una llamada real a Codex con imágenes; la opción de fotogramas está implementada, pero su resultado depende de las capacidades y acceso del modelo seleccionado.
 
-La suite `npm test` pasó **6 pruebas sin omisiones** en Windows: validación estricta del plan, proyección, rechazo de campos/archivos desconocidos, protección de la API local y exportaciones FFmpeg reales con cortes, velocidad, audio, silencio, concatenación y formato vertical. Incluye detección de reemplazo de originales por tamaño/fecha. `npm run check` pasó.
+La validación inicial pasó 6 pruebas sin omisiones en Windows: validación estricta del plan, proyección, rechazo de campos/archivos desconocidos, protección de la API local y exportaciones FFmpeg reales con cortes, velocidad, audio, silencio, concatenación y formato vertical. Incluye detección de reemplazo de originales por tamaño/fecha. La ampliación de la versión 0.2 se describe debajo.
 
 La interfaz se verificó en navegador a tamaño de escritorio y a 390 píxeles de ancho. Se probaron errores de importación, guardado de ajustes, duplicación, reordenación y eliminación de planos; la vista previa de un montaje vertical produjo una imagen de 270 × 480. Se corrigieron el desbordamiento móvil y una restricción errónea sobre tiempos decimales. La consola no mostró errores durante esas comprobaciones.
 
 La exportación probada no acredita seguimiento de sujetos, keyframes, edición de tomas largas ni compatibilidad con cada modo de cámara. Esas funciones y matrices de cobertura siguen fuera de lo validado en esta versión.
+
+## Versión 0.2: segmentos y metadatos de YouTube 360°
+
+El MP4 final recibe el UUID XML de Spherical Video V1 y las cajas `sv3d` y `st3d` de V2, con proyección equirectangular completa y modo monoscópico. Se añaden después de concatenar los segmentos, se conservan los paquetes de audio y vídeo y se corrigen los offsets `stco`/`co64`. El índice `moov` permanece delante de los datos cuando FFmpeg prepara faststart. Las exportaciones planas eliminan estas marcas si la fuente las traía.
+
+Se exportaron dos intervalos de una fuente X3 ya preparada: 0–0,5 s y 1–1,5 s. La prueba por la API de la app produjo **3840 × 1920, H.264 + AAC, 24 fotogramas**, con duración de pista de vídeo de **1,012 s** por los tiempos de concatenación y codificación de audio. FFprobe identificó `Spherical Mapping: equirectangular`. La descarga HTTP fue idéntica por SHA-256 al archivo generado y la reproducción parcial respondió 206. El montaje personal existente no se sustituyó durante esta prueba.
+
+Se contrastó el MP4 con el lector oficial de [Google Spatial Media, commit 2308497](https://github.com/google/spatial-media/tree/2308497c39bb604a7c3ba56ac17e302f2b1b6a96). Reconoció tanto V1 (`Spherical=true`, `Stitched=true`, `ProjectionType=equirectangular`, panorama completo de 3840 × 1920) como V2 (modo 0 mono, `EQUI` sin recorte, orientación inicial neutra). Esta validación es independiente del lector propio de Orbit360. **No se realizó una subida real a YouTube**; su procesamiento remoto no se presenta como verificado.
+
+La suite ampliada comprueba:
+
+- Una fuente sintética de 20 s a 30 fps con código visual de tiempo: 5–7 s produce los 60 fotogramas exactos seleccionados. Se verifican todos los fotogramas en 9:16, 16:9, 3:4 y 2:1.
+- Dos intervalos 5–7 y 12–15 s conservan orden, 150 fotogramas y procedencia temporal del audio. Inicio dentro de un fotograma y duración de AAC dentro de 50 ms. El original conserva SHA-256, tamaño y fecha.
+- Metadatos V1/V2 reconocidos por FFprobe, igualdad de hashes de cada paquete audiovisual y de los fotogramas decodificados antes y después de añadirlos, con `moov` inicial o final.
+- Escritura idempotente, salida exclusiva, cancelación con limpieza, rechazo de archivos truncados o fragmentados y tablas de offsets inválidas. Una prueba con archivo virtual de más de 4 GiB verifica la promoción a `co64` y lecturas acotadas a 1 MiB; no sustituye una exportación real de esa duración/tamaño.
+- Reimportación de un MP4 360° y exportación plana sin señalización esférica heredada. Límites decimales de segmentos de 0,1 s sin rechazo por redondeo binario.
+
+La interfaz se comprobó en escritorio y a 390 × 844 píxeles: selección de 3:4, recorte 5–7, división en 6,125 s, duplicar, reordenar y quitar; se rechazó una división fuera del interior del clip sin modificar el plan. El resultado 360° muestra confirmación de metadatos solo tras verificarlos en el MP4 final.
+
+El escritor acepta MP4 no fragmentado con una pista visual compatible e índice `moov` de hasta 64 MiB. Los tiempos de recorte se aplican a la copia panorámica preparada. La prueba sintética no demuestra igualdad exacta de tiempo/fotogramas entre cada INSV original y la preparación del SDK, ni precisión de fuentes de frecuencia variable.

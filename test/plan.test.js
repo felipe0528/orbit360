@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaultPlan,validatePlan,videoFilter,audioTempo} from '../src/plan.js';
 const assets=[{id:'abc',duration:10,projection:'equirectangular'}];
+test('accepts decimal 0.1-second segments while rejecting shorter cuts',()=>{
+  const plan=defaultPlan(assets);plan.clips[0].start=0.2;plan.clips[0].end=0.3;
+  assert.doesNotThrow(()=>validatePlan(plan,assets));
+  plan.clips[0].end=0.299;assert.throws(()=>validatePlan(plan,assets),/0,1 segundos/);
+});
 test('accepts a valid edit and isolates the caller object',()=>{const plan=defaultPlan(assets);const result=validatePlan(plan,assets);result.clips[0].start=1;assert.equal(plan.clips[0].start,0);});
 test('rejects hallucinated files, injected fields, non-finite values and impossible cuts',()=>{
   for(const change of [p=>p.clips[0].assetId='unknown',p=>p.command='rm',p=>p.clips[0].end=11,p=>p.clips[0].start=5,p=>p.clips[0].yaw=NaN,p=>p.clips[0].speed=0,p=>p.output.width=1081,p=>p.output.fps=1000,p=>p.clips[0].mute='true']) {

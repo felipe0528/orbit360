@@ -84,7 +84,7 @@ El código original de Orbit360, REA, FFmpeg y los SDK de Insta360 son component
 - Algunos formatos requieren dos archivos de lentes; otros guardan ambas pistas en un archivo. La documentación oficial describe esta diferencia. El nombre de archivo o la resolución no identifican por sí solos todos los modelos compatibles.
 - La presencia de recursos de cámaras en Studio no demuestra compatibilidad de esa cámara con Media SDK 3.1.5. Cada modelo, modo de captura, firmware y accesorio necesita una prueba con material real.
 - El reencuadre inicial es fijo por plano. Una secuencia de planos permite cambiar la vista; no equivale a interpolación de keyframes, seguimiento automático de objetos ni edición inteligente basada en comprensión visual completa.
-- Una salida 2:1 conserva la geometría equirectangular. Los metadatos de reproducción esférica de cada plataforma de publicación requieren validación independiente.
+- Una salida 2:1 conserva la geometría equirectangular. Desde Orbit360 0.2 se añaden metadatos Google Spatial Media V1 y V2 tras el montaje; el resultado se verificó con el lector oficial de Google y ffprobe. No se realizó una subida real a YouTube. La implementación sigue el formato público y no procede de descompilar Studio.
 - Las pruebas de exportación de Orbit360 se documentan aparte. Un inventario estático no acredita calidad visual, estabilización perfecta ni soporte universal.
 
 ## Fuentes oficiales de contraste

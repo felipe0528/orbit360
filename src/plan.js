@@ -33,7 +33,7 @@ export function validatePlan(plan, assets) {
     const asset = assets.find(a => a.id === clip.assetId);
     if (!asset) throw new Error('El plan hace referencia a un archivo no importado.');
     bounded(clip.start,0,asset.duration,'Inicio'); bounded(clip.end,0,asset.duration + 0.03,'Fin');
-    if (clip.end - clip.start < 0.1) throw new Error('Cada plano debe durar al menos 0,1 segundos.');
+    if (clip.end - clip.start < 0.1 - 1e-9) throw new Error('Cada plano debe durar al menos 0,1 segundos.');
     bounded(clip.yaw,-180,180,'Giro'); bounded(clip.pitch,-89,89,'Inclinación'); bounded(clip.fov,30,150,'Campo visual'); bounded(clip.speed,0.25,4,'Velocidad');
     if (typeof clip.mute !== 'boolean') throw new Error('Silencio debe ser booleano.');
     if (projection === 'equirectangular' && asset.projection === 'flat') throw new Error('Un video plano no puede convertirse en una esfera 360 real.');

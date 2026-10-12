@@ -34,6 +34,12 @@ test('real FFmpeg: mixed audio, silent input, cuts, speed, portrait and concaten
   assert.equal(result.width,180);assert.equal(result.height,320);assert.equal(result.hasAudio,true);assert.ok(Math.abs(result.duration-2.75)<0.2);
   const muted=defaultPlan([assets[0]]);muted.clips[0].mute=true;muted.output={width:640,height:320,fps:24,projection:'equirectangular'};
   const result2=await exportVideo(muted,assets,path.join(directory,'mute'),{progress:()=>{}});assert.equal((await probe(result2.path)).width,640);
+  assert.equal(result2.spherical.verified,true);assert.deepEqual(result2.spherical.metadataVersions,[1,2]);
+  assert.equal(result2.spherical.fastStart,true);assert.equal(result2.sphericalProjection,'equirectangular');
+  const [reimported]=await importAssets([result2.path],'equirectangular',[]);
+  const reframed=defaultPlan([reimported]);reframed.output={width:180,height:320,fps:24,projection:'flat'};
+  const flat=await exportVideo(reframed,[reimported],path.join(directory,'reframed'),{progress:()=>{}});
+  assert.equal(flat.sphericalProjection,null);assert.equal(flat.spherical,undefined);
   await fs.utimes(source,new Date(),new Date(Date.now()+10000));
   await assert.rejects(()=>prepare(assets[0],{},directory,{progress:()=>{}}),/original cambió/);
   const replaced=await importAssets([source],'equirectangular',assets);assert.equal(replaced.length,1);assert.notEqual(replaced[0].id,assets[0].id);
