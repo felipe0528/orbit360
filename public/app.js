@@ -78,7 +78,7 @@
 
   function loadFrame() {
     const a = currentAsset(); if (!a) return;
-    const clip = currentClip();
+    const clip = currentClip()?.assetId === a.id ? currentClip() : null;
     const out = ui.state.plan?.output || { width: 1920, height: 1080 };
     const params = new URLSearchParams({ time: String(Math.max(0, Math.min(seconds($('frame-time').value), Math.max(0, seconds(a.duration) - .05)))), yaw: String(clip?.yaw ?? 0), pitch: String(clip?.pitch ?? 0), fov: String(clip?.fov ?? 90), width: String(out.width), height: String(out.height), projection: out.projection || 'flat' });
     $('frame').src = mediaUrl('frame', a.id, `&${params}`);
@@ -132,7 +132,7 @@
     const assetsChanged = JSON.stringify(previous.assets) !== JSON.stringify(ui.state.assets);
     const planChanged = JSON.stringify(previous.plan) !== JSON.stringify(ui.state.plan);
     if (assetsChanged) { renderAssets(); renderPreview(); }
-    if (planChanged) { ui.clipIndex = ui.state.plan?.clips?.length ? Math.max(0, Math.min(ui.clipIndex, ui.state.plan.clips.length - 1)) : -1; renderPlan(); if (ui.view === 'frame') renderPreview(); }
+    if (planChanged) { ui.clipIndex = ui.state.plan?.clips?.length ? Math.max(0, Math.min(ui.clipIndex, ui.state.plan.clips.length - 1)) : -1; if (currentClip()) { ui.assetId = currentClip().assetId; $('frame-time').value = currentClip().start; } renderPlan(); renderAssets(); renderPreview(); }
     if (JSON.stringify(previous.jobs) !== JSON.stringify(ui.state.jobs)) renderJobs();
     updateButtons();
   }
