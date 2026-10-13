@@ -56,7 +56,7 @@ Referencias: [release fijado](https://github.com/eugeneware/ffmpeg-static/releas
 | Plataforma | Descarga fijada | Validación |
 | --- | --- | --- |
 | Windows x64 | Sí | Descarga, hashes, diagnóstico, arranque y pruebas reales de exportación verificados |
-| Linux x64 | Sí | Ejecución del runtime descargado pendiente; las pruebas de CI se informan en GitHub |
+| Linux x64 | Sí | CI instala este runtime y ejecuta la suite con Node 22/24; consulta el resultado del commit en GitHub Actions |
 | Linux arm64 | Sí | Pendiente en hardware correspondiente |
 | macOS x64 / arm64 | Sí | Pendiente en hardware correspondiente |
 | Otras arquitecturas | No | Se pueden proporcionar FFmpeg y FFprobe propios mediante variables de entorno |
