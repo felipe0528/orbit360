@@ -6,6 +6,8 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { projectRay, stitchDimensions, writeCalibrationMaps, stitchOpen } from '../src/stitch.js';
 import { run } from '../src/process.js';
+const ffmpeg = process.env.ORBIT_FFMPEG || 'ffmpeg';
+const ffprobe = process.env.ORBIT_FFPROBE || 'ffprobe';
 
 const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const backward = [-1, 0, 0, 0, 1, 0, 0, 0, -1];
@@ -115,7 +117,7 @@ function syntheticTrailer() {
 test('exports two real video tracks through calibrated maps without an SDK and preserves audio', async t => {
   const dir = await directory(t);
   const source = path.join(dir, 'original.mp4'), output = path.join(dir, 'sphere.mp4');
-  await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-nostdin',
+  await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin',
     '-f', 'lavfi', '-i', 'color=red:s=128x128:r=24:d=0.25',
     '-f', 'lavfi', '-i', 'color=blue:s=128x128:r=24:d=0.25',
     '-f', 'lavfi', '-i', 'sine=frequency=880:sample_rate=48000:duration=0.25',
@@ -124,17 +126,17 @@ test('exports two real video tracks through calibrated maps without an SDK and p
   await appendFile(source, syntheticTrailer());
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
   const originalHash = hash(await readFile(source));
-  const result = await stitchOpen({ paths: [source] }, output, { width: 1920 });
+  const result = await stitchOpen({ paths: [source] }, output, { width: 1920, ffmpeg, ffprobe });
   assert.equal(result.backend, 'open'); assert.equal(result.stabilized, false); assert.equal(result.uncoveredRatio, 0);
   assert.equal(hash(await readFile(source)), originalHash);
-  const { stdout } = await run('ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', output]);
+  const { stdout } = await run(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', output]);
   const probe = JSON.parse(stdout), video = probe.streams.find(stream => stream.codec_type === 'video');
   assert.equal(video.width, 1920); assert.equal(video.height, 960);
   assert.equal(Number(video.nb_frames), 6);
   assert.ok(probe.streams.some(stream => stream.codec_type === 'audio'));
   assert.ok(Math.abs(Number(probe.format.duration) - 0.25) < 0.06);
   const pixels = path.join(dir, 'frame.rgb');
-  await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', output, '-frames:v', '1',
+  await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', output, '-frames:v', '1',
     '-vf', 'scale=256:128', '-pix_fmt', 'rgb24', '-f', 'rawvideo', pixels]);
   const rgb = await readFile(pixels);
   const pixel = (x, y) => Array.from(rgb.subarray((y * 256 + x) * 3, (y * 256 + x) * 3 + 3));
@@ -142,4 +144,6 @@ test('exports two real video tracks through calibrated maps without an SDK and p
   assert.ok(front[0] > 230 && front[2] < 15, `front ${front}`);
   assert.ok(back[2] > 230 && back[0] < 15, `back ${back}`);
   assert.ok(seam[0] > 60 && seam[2] > 60, `the seam should blend both tracks: ${seam}`);
+  await assert.rejects(stitchOpen({paths:[source]},source,{width:1920,ffmpeg,ffprobe}),/salida.*ya existe/);
+  assert.equal(hash(await readFile(source)), originalHash);
 });
