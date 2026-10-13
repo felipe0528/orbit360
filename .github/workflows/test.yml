@@ -18,6 +18,15 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           package-manager-cache: false
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install and verify the portable multimedia runtime
+        run: node scripts/bootstrap.mjs --install --json
+      - name: Use the repository's runtime in tests
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {runtimeEnvironment} from './scripts/doctor.mjs';
+          const env = runtimeEnvironment();
+          fs.appendFileSync(process.env.GITHUB_ENV, `ORBIT_FFMPEG=${env.ORBIT_FFMPEG}\nORBIT_FFPROBE=${env.ORBIT_FFPROBE}\n`);
+          NODE
       - run: npm run check
       - run: npm test

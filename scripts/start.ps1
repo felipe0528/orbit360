@@ -11,8 +11,14 @@ $existing = $false
 try { $response = Invoke-WebRequest -Uri $appUrl -UseBasicParsing -TimeoutSec 2; $existing = $response.Content.Contains('orbit-token') } catch {}
 if (-not $existing) {
     $nodeExe = (Get-Command node -ErrorAction Stop).Source
-    $serverScript = Join-Path $appRoot 'scripts/bootstrap.mjs'
-    $serverProcess = Start-Process -FilePath $nodeExe -ArgumentList @('"' + $serverScript + '"', '--start') -WorkingDirectory $appRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $localDir 'server.log') -RedirectStandardError (Join-Path $localDir 'server-error.log')
+    $bootstrapScript = Join-Path $appRoot 'scripts/bootstrap.mjs'
+    $diagnosisJson = & $nodeExe $bootstrapScript --json
+    if ($LASTEXITCODE -ne 0) { throw 'Faltan requisitos. Ejecuta npm run setup y vuelve a iniciar.' }
+    $diagnosis = $diagnosisJson | ConvertFrom-Json
+    $env:ORBIT_FFMPEG = $diagnosis.commands.ffmpeg
+    $env:ORBIT_FFPROBE = $diagnosis.commands.ffprobe
+    $serverScript = Join-Path $appRoot 'src/server.js'
+    $serverProcess = Start-Process -FilePath $nodeExe -ArgumentList @('"' + $serverScript + '"') -WorkingDirectory $appRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $localDir 'server.log') -RedirectStandardError (Join-Path $localDir 'server-error.log')
     $ready = $false
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
         if ($serverProcess.HasExited) { throw "El servidor terminó. Revisa .local/server-error.log." }

@@ -22,6 +22,8 @@ Las pruebas sintéticas añadidas verifican el parser secuencial e indexado, rec
 
 El bootstrap se probó en Windows x64: descarga verificada, licencias conservadas, diagnóstico, reutilización sin descarga, arranque HTTP 200 y cierre. No necesita una cuenta Codex para editar o exportar. Los detalles de instalación están en [Portabilidad](portability.md); fórmulas, fuentes y límites en [Motor abierto](open-engine.md).
 
+Se creó además un clon limpio del código de 0.3, sin `.local` ni configuración previa. Con PATH reducido al directorio de sistema y rutas de Codex/SDK deliberadamente inexistentes, el bootstrap descargó su propio FFmpeg/FFprobe y el CLI inspeccionó una pareja X3 y exportó 0,25–1,25 s a 1080 × 1920, 30 fps, H.264 + AAC: un segundo de vídeo. La instalación detectó que Codex y Python no estaban disponibles y permitió editar igualmente. La suite completa pasó **41 pruebas, sin omisiones**, con ese runtime local 6.1.1. También pasó con el FFmpeg 9 de desarrollo. El clon limpio sigue ejecutándose en el mismo Windows; no se afirma haber probado una segunda máquina física o una cuenta de LLM nueva.
+
 ## Pruebas históricas con SDK: unión de lentes y FlowState
 
 Los modelos y las versiones de firmware se comprobaron con `MetaDataSDKDemo`, además de inspeccionar las pistas con FFprobe. La exportación usa el ejecutable privado `MediaSDKTest.exe`, óptica `optflow`, FlowState activado y salida panorámica de 1920 × 960. El resultado se comprueba con FFprobe y se decodifica una imagen con FFmpeg.
