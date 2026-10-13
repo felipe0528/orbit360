@@ -12,6 +12,7 @@
   const currentClip = () => ui.state.plan?.clips?.[ui.clipIndex];
   const mediaUrl = (kind, id, extra = '') => `/api/${kind}/${encodeURIComponent(id)}?token=${encodeURIComponent(token)}${extra}`;
   const hasActiveJob = type => ui.state.jobs.some(j => (!type || j.type === type) && ['queued', 'running'].includes(j.status));
+  const canPrepare = () => ui.state.capabilities.stitchBackend === 'insta360' ? ui.state.capabilities.sdk : ui.state.capabilities.ffmpeg && ui.state.capabilities.openStitch;
 
   function notice(message, error = false) { $('notice-text').textContent = message; $('notice').hidden = false; $('notice').classList.toggle('error', error); if ($('import-dialog').open) { $('import-status').textContent = message; $('import-status').hidden = false; } }
   async function api(path, options = {}) {
@@ -30,7 +31,7 @@
     $('generate-plan').disabled = !selected || !ui.state.capabilities.codex || hasActiveJob() || ui.busy;
     $('generate-plan').textContent = hasActiveJob('plan') ? 'Codex está preparando el montaje…' : 'Proponer montaje ↗';
     $('export').disabled = !ui.state.plan?.clips?.length || hasActiveJob() || ui.busy;
-    $('prepare-asset').disabled = !ui.state.capabilities.sdk || hasActiveJob() || ui.busy;
+    $('prepare-asset').disabled = !canPrepare() || hasActiveJob() || ui.busy;
     $('duplicate-clip').disabled = !currentClip() || (ui.state.plan?.clips?.length || 0) >= 100 || ui.busy;
     $('split-clip').disabled = !currentClip() || (ui.state.plan?.clips?.length || 0) >= 100 || ui.busy;
     $('move-clip-before').disabled = !currentClip() || ui.clipIndex === 0 || ui.busy;
@@ -41,7 +42,7 @@
     $('select-all').indeterminate = ui.selected.size > 0 && ui.selected.size < ui.state.assets.length;
     $('codex-status').classList.toggle('ready', Boolean(ui.state.capabilities.codex));
     $('codex-status').title = ui.state.capabilities.codex ? 'Codex disponible' : 'Codex no disponible. Ejecuta codex login y reinicia la aplicación.';
-    for (const [id, available, label] of [['ffmpeg-cap', ui.state.capabilities.ffmpeg, 'FFmpeg'], ['sdk-cap', ui.state.capabilities.sdk, 'Media SDK']]) { $(id).textContent = `${label} · ${available ? 'disponible' : 'no disponible'}`; $(id).classList.toggle('unavailable', !available); }
+    for (const [id, available, label] of [['ffmpeg-cap', ui.state.capabilities.ffmpeg, 'FFmpeg'], ['sdk-cap', canPrepare(), ui.state.capabilities.stitchBackend === 'insta360' ? 'Media SDK' : 'Motor abierto']]) { $(id).textContent = `${label} · ${available ? 'disponible' : 'no disponible'}`; $(id).classList.toggle('unavailable', !available); }
   }
 
   function renderAssets() {
@@ -68,8 +69,10 @@
     $('frame-mode').setAttribute('aria-pressed', String(ui.view === 'frame'));
     const out = ui.state.plan?.output;
     $('preview-note').textContent = ui.view === 'frame' ? `Fotograma de encuadre ${out ? `${out.width} × ${out.height}` : '16:9'} · sin montaje` : 'Vista previa del material original';
-    $('prepare-asset').disabled = !ui.state.capabilities.sdk || hasActiveJob() || ui.busy;
-    $('prepare-hint').textContent = ui.state.capabilities.sdk ? 'La preparación puede tardar. Sigue el avance en Actividad.' : 'Configura el Media SDK o importa un MP4 360° exportado desde Studio.';
+    if (ready && a?.stitching?.backend === 'open') $('preview-note').textContent += ' · Motor abierto, sin estabilización';
+    $('prepare-asset').disabled = !canPrepare() || hasActiveJob() || ui.busy;
+    $('prepare-description').textContent = ui.state.capabilities.stitchBackend === 'insta360' ? 'El SDK une las lentes y solicita estabilización FlowState.' : 'El motor abierto une las lentes usando la calibración del archivo. Es experimental: todavía no estabiliza la cámara ni corrige objetos cercanos a la costura.';
+    $('prepare-hint').textContent = canPrepare() ? 'La preparación puede tardar. Sigue el avance en Actividad.' : 'Ejecuta npm run setup y reinicia la aplicación para preparar INSV.';
     if (ready && ui.view === 'video') {
       const next = mediaUrl('media', a.id);
       if ($('video').getAttribute('src') !== next || force) { $('video').src = next; $('video').load(); }

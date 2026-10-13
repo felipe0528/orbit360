@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "title": "Dos momentos en vertical",
+  "explanation": "Ejemplo: conserva 5–7 y 12–15 segundos. Requiere una fuente de al menos 15 segundos; adapta los límites a la inspección real.",
+  "output": { "width": 1080, "height": 1920, "fps": 30, "projection": "flat" },
+  "clips": [
+    { "sourceIndex": 0, "start": 5, "end": 7, "yaw": 0, "pitch": 0, "fov": 90, "speed": 1, "mute": false },
+    { "sourceIndex": 0, "start": 12, "end": 15, "yaw": 90, "pitch": 0, "fov": 90, "speed": 1, "mute": false }
+  ]
+}

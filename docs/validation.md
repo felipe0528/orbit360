@@ -1,8 +1,28 @@
 # Validación local
 
-Fecha de pruebas: 12 de octubre de 2026. Entorno: Windows x64, MediaSDK 3.1.5 y MetadataSDK 2.0.2 del ZIP proporcionado por el usuario. Las fuentes originales se abrieron en modo de lectura. Este documento omite rutas personales, nombres de clips, números de serie, coordenadas y contenido audiovisual privado.
+Fechas de pruebas: 12 y 13 de octubre de 2026. Entorno: Windows x64. La versión 0.3 añade pruebas sin SDK con FFmpeg/FFprobe 6.1.1 portátil; las secciones históricas de 0.1/0.2 usan MediaSDK 3.1.5 y MetadataSDK 2.0.2. Las fuentes originales se abrieron en modo de lectura. Este documento omite rutas personales, nombres de clips, números de serie, coordenadas y contenido audiovisual privado.
 
-## Unión de lentes y FlowState
+## Versión 0.3: procesamiento sin SDK ni Studio
+
+Se ejecutó el motor `mei-brown-1` con un clip real por modelo, sin invocar DLL, ejecutables, modelos o encabezados de Insta360. La calibración se obtuvo con el lector Node del propio repositorio. Se usaron FFmpeg y FFprobe 6.1.1 descargados por el bootstrap y verificados por SHA-256, sin utilizar el FFmpeg 9 instalado globalmente para estas tres pruebas.
+
+| Modelo | Entrada | Panorama preparado | Resultado de edición |
+| --- | --- | --- | --- |
+| ONE X2 | Pareja H.264, 2880², 24 fps | 3840 × 1920, 41 cuadros, 1,708333 s, audio | Dos intervalos, MP4 vertical y 360° aprobados |
+| X3 | Pareja H.264, 2880², 24 fps | 3840 × 1920, 46 cuadros, 1,916667 s, audio | Dos intervalos, MP4 vertical y 360° aprobados |
+| X4 | Dos pistas HEVC, 3840², 24 fps | 3840 × 1920, 48 cuadros, 2 s, audio | Dos intervalos, MP4 vertical y 360° aprobados |
+
+Cada montaje conserva 0,25–0,75 s y 1–1,5 s: 1 s final, H.264 + AAC. Se comprobaron 1080 × 1920 plano sin marcas esféricas y 3840 × 1920 con V1/V2 reconocidos por FFprobe. El lector oficial de Google Spatial Media también reconoció el MP4 X4 como esfera completa monoscópica con ambas versiones de metadatos. No se realizó una subida a YouTube.
+
+Los mapas de las tres calibraciones no dejaron píxeles sin cobertura. Se inspeccionaron imágenes decodificadas: representan la esfera completa, pero muestran inclinación de cámara y defectos de paralaje en la zona de unión. **No tienen estabilización y no se consideran equivalentes al resultado de Studio.** Son tomas breves; no prueban sincronía o calidad en grabaciones largas ni accesorios o modelos distintos.
+
+La API local preparó también el X3 con el motor abierto, identificó explícitamente `backend: open` y `stabilized: false`, devolvió una vista plana 9:16 con HTTP 200 y conservó el plan personal existente. Una caché generada por el SDK no se utilizó como prueba del motor abierto. La comprobación visual del navegador de esta revisión no pudo completarse: el controlador devolvió `ERR_BLOCKED_BY_CLIENT` para localhost; no se presenta como aprobada.
+
+Las pruebas sintéticas añadidas verifican el parser secuencial e indexado, recorte de sensor, matrices, límites de lectura, ausencia de datos personales en su salida, originales intactos, coordenadas PGM de 16 bits, polos, cobertura y mezcla. Una prueba completa genera dos lentes de colores y audio, añade un trailer válido, ejecuta el motor y comprueba los hemisferios resultantes. Las pruebas del CLI verifican planes portables, dos cortes, JSON, carpetas de salida exclusivas y duración común tanto en parejas como en un archivo de dos pistas.
+
+El bootstrap se probó en Windows x64: descarga verificada, licencias conservadas, diagnóstico, reutilización sin descarga, arranque HTTP 200 y cierre. No necesita una cuenta Codex para editar o exportar. Los detalles de instalación están en [Portabilidad](portability.md); fórmulas, fuentes y límites en [Motor abierto](open-engine.md).
+
+## Pruebas históricas con SDK: unión de lentes y FlowState
 
 Los modelos y las versiones de firmware se comprobaron con `MetaDataSDKDemo`, además de inspeccionar las pistas con FFprobe. La exportación usa el ejecutable privado `MediaSDKTest.exe`, óptica `optflow`, FlowState activado y salida panorámica de 1920 × 960. El resultado se comprueba con FFprobe y se decodifica una imagen con FFmpeg.
 

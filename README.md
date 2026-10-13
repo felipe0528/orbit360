@@ -1,13 +1,14 @@
 # Orbit360
 
-Editor local y open source para vídeos Insta360, con propuestas de montaje de **Codex** y exportación reproducible a MP4. Interfaz en español. Windows x64 es el entorno objetivo para INSV; el montaje de MP4 funciona con Node.js y FFmpeg.
+Editor local y open source para vídeos Insta360, con propuestas de montaje de **Codex** y exportación reproducible a MP4. Incluye un lector INSV y un motor propio de unión de lentes, escritos en JavaScript, interfaz en español y CLI para agentes.
 
-**Versión 0.2: funcional, experimental.** El código de la aplicación es MIT. Insta360 Media SDK se aporta por separado y no es open source. Este proyecto independiente no está afiliado a Insta360 ni a OpenAI.
+**Versión 0.3: motor abierto experimental.** Procesa las muestras X2, X3 y X4 verificadas sin Studio ni Media SDK. El código original es MIT; FFmpeg mantiene sus propias licencias. El motor aún no estabiliza con el giroscopio ni iguala la costura de Studio en objetos cercanos. No se promete compatibilidad universal con cámaras o modos nuevos. Este proyecto independiente no está afiliado a Insta360 ni a OpenAI.
 
 ## Qué hace
 
 - Importa INSV y agrupa las parejas de lentes `_00_`/`_10_` cuando existen. Acepta también archivos INSV con ambas pistas y MP4/MOV/MKV.
-- Une las lentes con Media SDK y solicita FlowState; conserva los originales y crea una copia panorámica local de 3840 × 1920.
+- Lee la calibración v3 del propio INSV, aplica proyección Mei + distorsión Brown y une las lentes con FFmpeg. Conserva los originales y crea una copia panorámica local de 3840 × 1920 por defecto.
+- Instala un runtime multimedia local con hashes verificados. No necesita Python, compilador C++, SDK propietario ni archivos del computador de desarrollo para el motor abierto.
 - Conecta con tu sesión de Codex CLI para proponer cortes, orden, velocidad, silencio y encuadre fijo por plano.
 - Permite revisar y modificar el plan antes de exportar. No ejecuta comandos propuestos por el modelo.
 - Recorta intervalos precisos, divide clips y permite duplicar, quitar o reordenar segmentos sin modificar los originales.
@@ -17,23 +18,42 @@ Editor local y open source para vídeos Insta360, con propuestas de montaje de *
 
 ## Inicio rápido
 
-Requisitos: Node.js 22 o posterior; `ffmpeg` y `ffprobe` en PATH con `libx264`, `aac` y `v360`; Codex CLI actualizado con sesión iniciada (`codex login`). La integración se probó con Codex CLI 0.146.1 y FFmpeg 9.0.1. No hay dependencias npm de ejecución.
+Requisito previo: **Node.js 22 o posterior**. La primera instalación necesita Internet. Codex es opcional para proponer montajes; la edición manual y la exportación no necesitan un LLM. No hay dependencias npm de ejecución.
 
 ```powershell
 git clone https://github.com/felipe0528/orbit360.git
 cd orbit360
+npm run setup
 npm start
 ```
 
 Abre **http://127.0.0.1:3600**. También puedes usar `scripts/start.ps1` para arrancar el servidor y abrir el navegador. Si el puerto está ocupado: `$env:PORT = '3601'`.
 
-Para trabajar con INSV, configura tu distribución oficial del SDK:
+`setup` descarga FFmpeg/FFprobe 6.1.1 a `.local/runtime`, verifica SHA-256 y conserva licencia y procedencia. No instala herramientas globales. Si ya tienes un FFmpeg compatible, puedes omitirlo. `npm run doctor` comprueba los requisitos. Hay descargas fijadas para Windows x64, Linux x64/arm64 y macOS x64/arm64; las plataformas realmente ejecutadas se registran en [portabilidad](docs/portability.md).
+
+## Uso desde Codex, Claude u otro agente
+
+Un agente con acceso a una terminal local puede usar el mismo motor sin automatizar la interfaz. Cada persona aporta sus vídeos y, si usa un LLM, su propia cuenta. Un agente en la nube necesita acceso a los archivos y a un entorno que pueda ejecutar Node y FFmpeg; el enlace de GitHub por sí solo no da acceso a un disco local.
+
+```sh
+node src/cli.mjs inspect --input /ruta/VID_00_001.insv
+node src/cli.mjs render --input /ruta/VID_00_001.insv --output ./resultados --format portrait --start 5 --end 7
+node src/cli.mjs render --input /ruta/VID_00_001.insv --output ./resultados --plan examples/two-segments.json
+```
+
+En Windows usa rutas entre comillas, por ejemplo `"D:\Vídeos\VID_00_001.insv"`. `inspect` devuelve JSON con duración, pistas y calibración disponible. `render` acepta 9:16 (`portrait`), 16:9 (`landscape`), 3:4 (`three-four`), cuadrado o `360`. Cada resultado va a una carpeta nueva; progreso por stderr y resultado JSON por stdout. El plan puede referenciar fuentes mediante `sourceIndex`, sin rutas ni identificadores de otra máquina. Consulta [AGENTS.md](AGENTS.md).
+
+Estos comandos hacen ejecutable la edición. **No constituyen un sistema completo de comprensión narrativa:** `inspect` no identifica acciones ni momentos, y todavía no existe una memoria de escenas, transcripción Whisper ni seguimiento de sujetos. Un agente debe inspeccionar evidencia visual para decidir la historia.
+
+## Adaptador Insta360 opcional
+
+El motor predeterminado es `open`. Si prefieres la estabilización y unión del SDK oficial, puedes configurar tu distribución por separado:
 
 ```powershell
 ./scripts/setup-sdk.ps1 -ZipPath 'C:\RUTA\Windows_CameraSDK-2.1.8_MediaSDK-3.1.5.zip'
 ```
 
-Reinicia Orbit360 después de configurar el SDK. El script extrae Media SDK dentro de `.local/sdk` y genera `.local/config.json`. Necesita aproximadamente 2 GB adicionales. No modifica Studio. Se puede usar `-Destination` con otra carpeta privada nueva.
+El script extrae Media SDK dentro de `.local/sdk` y genera `.local/config.json`. Necesita aproximadamente 2 GB adicionales. No modifica Studio. Para seleccionarlo, inicia la aplicación con `$env:ORBIT_STITCH_BACKEND = 'insta360'`; el motor abierto se selecciona con `open`. Instalar o detectar un SDK no activa automáticamente su uso. Reinicia después del cambio. Las cachés de ambos motores están separadas.
 
 El camino probado usa `MediaSDKTest.exe` de tu SDK como proceso separado. Su código de salida no basta para determinar éxito: Orbit360 comprueba el progreso final y el archivo con ffprobe. El [adaptador C++ propio](native/README.md) es una alternativa experimental para compilar con Visual Studio; no se necesita para el camino probado.
 
@@ -50,7 +70,7 @@ Para probar sin cámara: `npm run demo` genera un patrón sintético de ocho seg
 
 ## Recortes y YouTube 360°
 
-Para extraer del segundo 5 al 7, selecciona el clip, escribe **Entrada = 5** y **Salida = 7**, y guarda los ajustes. A velocidad 1× el resultado dura dos segundos. **Dividir clip** crea dos segmentos en el tiempo del original indicado; puedes recortar cada uno, quitarlo, duplicarlo o cambiar su orden. Se aceptan segundos decimales. La precisión efectiva depende de los fotogramas y de la fuente preparada por el SDK.
+Para extraer del segundo 5 al 7, selecciona el clip, escribe **Entrada = 5** y **Salida = 7**, y guarda los ajustes. A velocidad 1× el resultado dura dos segundos. **Dividir clip** crea dos segmentos en el tiempo del original indicado; puedes recortar cada uno, quitarlo, duplicarlo o cambiar su orden. Se aceptan segundos decimales. La precisión efectiva depende de los fotogramas de la fuente preparada. En parejas INSV se conserva la duración común de ambas lentes.
 
 Elige **360° · YouTube / VR** para conservar toda la esfera, incluso en montajes de varios segmentos. Orbit360 genera un MP4 3840 × 1920 con H.264, AAC y señalización esférica monoscópica de [Google Spatial Media V1](https://github.com/google/spatial-media/blob/master/docs/spherical-video-rfc.md) y [V2](https://github.com/google/spatial-media/blob/master/docs/spherical-video-v2-rfc.md). Se comprueban los metadatos y su reconocimiento por ffprobe antes de declarar completada la exportación. Descarga ese MP4 y súbelo directamente a YouTube; no necesita un archivo de metadatos separado. Los MP4 exportados con versiones anteriores deben volver a exportarse para recibir estas marcas.
 
@@ -70,8 +90,9 @@ La interfaz y el motor corren en tu equipo. Solo escuchan en `127.0.0.1`; se val
 
 La comprobación de cámaras y resultados está en [docs/validation.md](docs/validation.md). El análisis de REA, Studio 6.0.4 y el SDK está en [docs/analysis.md](docs/analysis.md).
 
-- La compatibilidad de INSV depende de Media SDK, firmware, modo y accesorios. No se promete soporte universal para la cámara más reciente. Actualizar Studio no actualiza automáticamente el SDK que usa Orbit360.
-- Límite inicial: 100 planos, una hora de salida, hasta 4096 píxeles por dimensión y 24/25/30/50/60 fps. Preparación INSV a 3840 × 1920: no preserva la resolución nativa 8K.
+- El motor abierto necesita dos pistas cuadradas y calibración v3 compatible en el archivo principal. Se validó con muestras reales X2/X3/X4. No hay validación X5/X6 ni de todos los firmwares, accesorios o modos. Rechaza calibraciones desconocidas; no inventa parámetros ópticos. Detalles y procedencia en [motor abierto](docs/open-engine.md).
+- Sin estabilización IMU, corrección de paralaje, seguimiento óptico de costuras, compensación entre exposiciones, perfiles de protectores ni conservación HDR/10 bits. El remapeo usa coordenadas de píxel enteras y mezcla geométrica; no se presenta como equivalente a Studio o FlowState.
+- Límite inicial: 100 planos, una hora de salida, hasta 4096 píxeles por dimensión y 24/25/30/50/60 fps. Preparación predeterminada de 3840 × 1920. `ORBIT_STITCH_WIDTH` o `stitchWidth` permite 1920..7680, múltiplo de 4, para aumentar el detalle previo al reencuadre; el límite del MP4 final sigue siendo 4096. No se promete una exportación final 8K.
 - Reencuadre fijo por plano; aún no hay seguimiento de sujetos, movimiento suave por keyframes, transiciones, subtítulos, música añadida, control físico de cámara ni importación de proyectos Studio.
 - La salida panorámica conserva geometría 2:1 y metadatos esféricos; yaw/pitch/FOV solo afectan la salida plana. El procesamiento final de cada plataforma ocurre después de la subida.
 - Los cambios del archivo original se detectan por tamaño y fecha de modificación; debes reimportarlo. No se hace un hash completo de vídeos grandes. Cerrar el servidor interrumpe tareas; al reiniciar se marcan como fallidas y pueden repetirse.
@@ -86,7 +107,7 @@ npm run check
 
 Las pruebas generan vídeos sintéticos temporales y verifican fotogramas y audio de los intervalos seleccionados, velocidad, reencuadre, concatenación, metadatos 360°, validación del plan y protección HTTP. El escritor de metadatos verifica offsets de pistas de 32 y 64 bits y conserva los paquetes audiovisuales sin recodificarlos. FFmpeg es necesario para las pruebas audiovisuales. No usan Codex ni SDK de pago en CI.
 
-Variables opcionales: `ORBIT_DATA_DIR`, `ORBIT_FFMPEG`, `ORBIT_FFPROBE`, `ORBIT_CODEX_JS` (ruta de `@openai/codex/bin/codex.js`) u `ORBIT_CODEX_EXE` (ejecutable nativo, no un `.cmd`). Para SDK: configura `sdkExecutable`, `sdkKind` (`sample` o `bridge`), `sdkModels` y `sdkRoot` en `.local/config.json`. El backend está separado en `media.js`, `plan.js`, `planner.js` y `server.js` para incorporar otros proveedores en el futuro.
+Variables opcionales: `ORBIT_DATA_DIR`, `ORBIT_FFMPEG`, `ORBIT_FFPROBE`, `ORBIT_STITCH_BACKEND` (`open` o `insta360`), `ORBIT_STITCH_WIDTH`, `ORBIT_CODEX_JS` (ruta de `@openai/codex/bin/codex.js`) u `ORBIT_CODEX_EXE` (ejecutable nativo, no un `.cmd`). Para el adaptador opcional: configura `sdkExecutable`, `sdkKind` (`sample` o `bridge`), `sdkModels` y `sdkRoot` en `.local/config.json`.
 
 ## Licencias
 

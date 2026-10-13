@@ -2,15 +2,16 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { run } from './process.js';
-import { videoFilter, audioTempo } from './plan.js';
+import { videoFilter, audioTempo, validatePlan } from './plan.js';
 import { injectSphericalMetadata, stripSphericalMetadata } from './spherical.js';
+import { stitchOpen, stitchDimensions, OPEN_STITCH_VERSION } from './stitch.js';
 
 export const ffmpeg = process.env.ORBIT_FFMPEG || 'ffmpeg';
 export const ffprobe = process.env.ORBIT_FFPROBE || 'ffprobe';
 export async function probe(file) {
   const {stdout} = await run(ffprobe,['-v','error','-show_format','-show_streams','-of','json',file],{timeout:60000});
-  const data = JSON.parse(stdout), video = data.streams?.find(s=>s.codec_type==='video');
-  const duration = Number(video?.duration || data.format?.duration);
+  const data = JSON.parse(stdout), videos = data.streams?.filter(s=>s.codec_type==='video'&&!s.disposition?.attached_pic) || [], video = videos[0];
+  const duration = Math.min(...(path.extname(file).toLowerCase()==='.insv' ? videos : [video]).map(v=>Number(v?.duration || data.format?.duration)));
   if (!video || !Number.isFinite(duration) || duration <= 0) throw new Error('No se encontró un video con duración válida.');
   const [a,b] = (video.avg_frame_rate || '0/1').split('/').map(Number);
   const sphericalProjection=video.side_data_list?.find(item=>item.side_data_type==='Spherical Mapping')?.projection || null;
@@ -36,7 +37,8 @@ export async function importAssets(paths, projection, current) {
     const sourceStats=await Promise.all(pair.map(async source=>{const s=await fs.stat(source);return {size:s.size,mtimeMs:s.mtimeMs};}));
     const id = createHash('sha256').update(JSON.stringify({pair,sourceStats})).digest('hex').slice(0,20);
     if (current.some(a=>a.id===id) || additions.some(a=>a.id===id)) continue;
-    const info = await probe(file);
+    const info = await probe(pair[0]);
+    if (pair.length === 2) info.duration = Math.min(info.duration, (await probe(pair[1])).duration);
     additions.push({id,name:path.basename(pair[0]),paths:pair,sourceStats,...info,projection:ext==='.insv'?'insv':projection,ready:ext!=='.insv',size:stat.size});
   }
   return additions;
@@ -60,23 +62,37 @@ export async function scan(directory) {
 }
 export function mediaPath(asset) {
   if (asset.projection === 'insv') {
-    if (!asset.ready || !asset.preparedPath) throw new Error('Prepara primero el archivo INSV con el SDK.');
+    if (!asset.ready || !asset.preparedPath) throw new Error('Prepara primero las dos lentes del archivo INSV.');
     return asset.preparedPath;
   }
   return asset.paths[0];
 }
-export async function prepare(asset, config, cacheDir, {signal, progress}) {
+export async function prepare(asset, config, cacheDir, {signal, progress = () => {}} = {}) {
   for (let i=0;i<asset.paths.length;i++) {
     const stat=await fs.stat(asset.paths[i]), recorded=asset.sourceStats?.[i];
     if (recorded && (stat.size!==recorded.size || stat.mtimeMs!==recorded.mtimeMs)) throw new Error('El original cambió desde la importación. Vuelve a importarlo para evitar usar una copia antigua.');
   }
   if (asset.projection !== 'insv') return asset;
-  if (asset.ready && asset.preparedPath) { try { await fs.access(asset.preparedPath); return asset; } catch {} }
-  if (!config.sdkExecutable) throw new Error('SDK sin configurar. Ejecuta scripts/setup-sdk.ps1 con tu ZIP de Insta360.');
+  const backend = config.stitchBackend || 'open';
+  if (!['open','insta360'].includes(backend)) throw new Error('Motor de preparación desconocido.');
+  const width = backend === 'open' ? stitchDimensions(config.stitchWidth).width : 3840;
+  const engine = backend === 'open' ? OPEN_STITCH_VERSION : 'insta360-1';
+  const cacheKey = `${asset.id}-${engine}-${width}`;
+  if (asset.ready && asset.preparedPath && asset.preparedKey === cacheKey) { try { await fs.access(asset.preparedPath); return backend === 'open' ? {...asset,duration:Math.min(asset.duration,asset.preparedInfo.duration)} : asset; } catch {} }
   await fs.mkdir(cacheDir,{recursive:true});
-  const output = path.join(cacheDir,`${asset.id}.mp4`);
-  const temporary = path.join(cacheDir,`${asset.id}.partial.mp4`);
+  const output = path.join(cacheDir,`${cacheKey}.mp4`);
+  const temporary = path.join(cacheDir,`${cacheKey}.partial.mp4`);
   await fs.rm(temporary,{force:true});
+  if (backend === 'open') {
+    try {
+      const stitching = await stitchOpen(asset, temporary, {width, ffmpeg, ffprobe, signal, progress});
+      const info = await probe(temporary);
+      if (info.width !== width || info.height !== width / 2 || Math.abs(info.duration - stitching.duration) > Math.max(0.1, 2 / info.fps)) throw new Error('El motor abierto produjo una panorámica incompleta.');
+      await fs.rename(temporary,output);
+      return {...asset,duration:Math.min(asset.duration,info.duration),ready:true,preparedPath:output,preparedKey:cacheKey,preparedInfo:info,stitching};
+    } catch (error) { await fs.rm(temporary,{force:true}).catch(()=>{}); throw error; }
+  }
+  if (!config.sdkExecutable) throw new Error('SDK sin configurar. Ejecuta scripts/setup-sdk.ps1 con tu ZIP de Insta360.');
   const args = config.sdkKind === 'sample'
     ? ['-inputs',...asset.paths,'-output',temporary,'-output_size','3840x1920','-enable_flowstate','-stitch_type','optflow','-camera_accessory_type','-1',...(config.sdkModels?['-model_root_dir',config.sdkModels + path.sep]:[])]
     : [...asset.paths.flatMap(p=>['--input',p]),'--output',temporary,'--width','3840','--height','1920','--flowstate','1','--direction-lock','0',...(config.sdkRoot?['--sdk-root',config.sdkRoot]:[]),...(config.sdkModels?['--models',config.sdkModels]:[])];
@@ -90,10 +106,11 @@ export async function prepare(asset, config, cacheDir, {signal, progress}) {
     const info=await probe(temporary);
     if (info.width !== info.height * 2 || info.duration < asset.duration * 0.95) throw new Error('El SDK produjo una salida incompleta o no panorámica.');
     await fs.rename(temporary,output);
-    return {...asset,ready:true,preparedPath:output,preparedInfo:info};
+    return {...asset,ready:true,preparedPath:output,preparedKey:cacheKey,preparedInfo:info,stitching:{backend:'insta360',engine,stabilized:true}};
   } catch (error) { await fs.rm(temporary,{force:true}).catch(()=>{}); throw error; }
 }
 export async function exportVideo(plan, assets, directory, {signal, progress}) {
+  plan=validatePlan(plan,assets);
   await fs.mkdir(directory,{recursive:true});
   const total=plan.clips.reduce((s,c)=>s+(c.end-c.start)/c.speed,0);
   let completed=0;

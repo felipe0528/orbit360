@@ -8,6 +8,7 @@ import { run, codexCommand } from './process.js';
 import { importAssets, scan, probe, prepare, exportVideo, frame, mediaPath, ffmpeg, ffprobe } from './media.js';
 import { validatePlan, defaultPlan } from './plan.js';
 import { planWithCodex } from './planner.js';
+import { OPEN_STITCH_VERSION, stitchDimensions } from './stitch.js';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const json=(res,value,status=200)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(value));};
@@ -23,11 +24,15 @@ export async function createApp({dataDir=process.env.ORBIT_DATA_DIR || path.join
   try { state=JSON.parse(await fs.readFile(path.join(dataDir,'project.json'),'utf8')); } catch(error) { if(error.code!=='ENOENT') throw new Error('project.json no es legible; conserva una copia y repáralo antes de iniciar.'); }
   try { config=JSON.parse(await fs.readFile(path.join(dataDir,'config.json'),'utf8')); } catch(error) { if(error.code!=='ENOENT') throw error; }
   if(process.env.ORBIT_SDK_EXE) config={...config,sdkExecutable:process.env.ORBIT_SDK_EXE,sdkKind:process.env.ORBIT_SDK_KIND || 'bridge',sdkModels:process.env.ORBIT_SDK_MODELS || config.sdkModels};
+  config.stitchBackend=process.env.ORBIT_STITCH_BACKEND || config.stitchBackend || 'open';
+  if(process.env.ORBIT_STITCH_WIDTH) config.stitchWidth=Number(process.env.ORBIT_STITCH_WIDTH);
+  const stitchWidth=stitchDimensions(config.stitchWidth).width;
   for(const job of state.jobs) if(['queued','running'].includes(job.status)) Object.assign(job,{status:'failed',error:'La aplicación se cerró antes de terminar. Vuelve a iniciar la operación.'});
   for(const asset of state.assets) if(asset.projection==='insv'&&!existsSync(asset.preparedPath || '')) asset.ready=false;
+  for(const asset of state.assets) if(asset.projection==='insv' && asset.preparedKey!==`${asset.id}-${config.stitchBackend==='open'?OPEN_STITCH_VERSION:'insta360-1'}-${config.stitchBackend==='open'?stitchWidth:3840}`) asset.ready=false;
   let saveQueue=Promise.resolve();
   function save() { const snapshot=JSON.stringify(state,null,2); saveQueue=saveQueue.catch(()=>{}).then(async()=>{const tmp=path.join(dataDir,'project.tmp');await fs.writeFile(tmp,snapshot);await fs.rename(tmp,path.join(dataDir,'project.json'));}); return saveQueue; }
-  const capabilities={ffmpeg:false,codex:false,sdk:!!config.sdkExecutable&&existsSync(config.sdkExecutable)};
+  const capabilities={ffmpeg:false,codex:false,sdk:!!config.sdkExecutable&&existsSync(config.sdkExecutable),stitchBackend:config.stitchBackend,stitchWidth,openStitch:true};
   if(detect) {
     const [cmd,args]=codexCommand();
     const results=await Promise.allSettled([Promise.all([run(ffmpeg,['-version']),run(ffprobe,['-version'])]),run(cmd,[...args,'--version'])]);

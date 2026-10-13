@@ -1,10 +1,12 @@
 # Análisis técnico de Insta360 y REA
 
-Fecha de inspección: 12 de octubre de 2026. Este informe público omite rutas personales, nombres de vídeos, proyectos, credenciales y contenido audiovisual.
+Inspección inicial: 12 de octubre de 2026. Actualización del motor abierto y del formato INSV: 13 de octubre de 2026. Este informe público omite rutas personales, nombres de vídeos, proyectos, credenciales y contenido audiovisual.
 
 ## Decisión de arquitectura
 
-La integración viable utiliza el **Media SDK como dependencia opcional instalada por el usuario** para unir lentes y aplicar estabilización. Orbit360 recibe el resultado panorámico y usa FFmpeg para recortar, ordenar planos, cambiar velocidad, reencuadrar y exportar. Un MP4 panorámico previamente exportado desde Studio también sirve de entrada. El LLM propone un plan JSON con operaciones limitadas; no necesita recibir ejecutables ni bibliotecas de Insta360.
+Desde **Orbit360 0.3**, la preparación predeterminada utiliza un lector INSV y un motor geométrico abiertos escritos en Node.js. El motor lee la calibración v3 del propio vídeo, genera mapas de proyección y une las lentes mediante FFmpeg, sin ejecutar Studio ni los SDK de Insta360. Se probó con material de ONE X2, X3 y X4. Es experimental: todavía no implementa estabilización IMU, FlowState ni corrección de paralaje. Su contrato, fórmulas, procedencia y límites se describen en [Motor abierto](open-engine.md).
+
+El **Media SDK permanece como adaptador opcional instalado y seleccionado por el usuario** para la preparación con estabilización. Un MP4 panorámico previamente exportado desde Studio también sirve de entrada. Después de preparar la esfera, FFmpeg recorta, ordena planos, cambia velocidad, reencuadra y exporta. El LLM propone un plan JSON con operaciones limitadas; no necesita recibir ejecutables ni bibliotecas de Insta360.
 
 No se encontró una interfaz pública de automatización de Studio que permita asumir exportación por línea de comandos. La aplicación no depende de sus servicios privados ni de sus archivos de proyecto internos.
 
@@ -63,6 +65,12 @@ Identificadores de evidencia REA retenidos en el análisis privado:
 
 No se ejecutó Ghidra, IDA ni Hopper. Por tanto, este informe no afirma haber recuperado algoritmos, pseudocódigo, protocolos privados ni comportamiento de ejecución mediante REA.
 
+### Comprobación posterior del formato INSV
+
+El 13 de octubre se ejecutó `inspect-artifact <archivo.insv> --json` con REA 6.4.0 sobre las muestras principales X2, X3 y X4. Las tres devolvieron `target_unavailable`, categoría `unsupported_target`, restricción `file_format_rejected` y razón `unsupported binary format`. También se consultaron `providers --json` y `capabilities --json`: Ghidra no estaba disponible en ese entorno y no se realizó descompilación nativa. Importar un vídeo como código de una CPU no demostraría cómo interpretar sus lentes o calibración.
+
+Se emplearon lectores locales originales y referencias públicas para examinar el MP4 y su trailer por separado. Los archivos principales X2/X3 tienen registros secuenciales; el X4 tiene un directorio de registros y relleno, por lo que un recorrido secuencial simple no es suficiente. Las segundas lentes X2/X3 no tienen trailer y contienen un cuadro menos. Estas observaciones se incorporaron al parser acotado y al cálculo de duración común del motor abierto. REA no contiene ni suministró ese motor de unión.
+
 ## Observaciones adicionales de los binarios
 
 Un lector PE local, independiente de REA, enumeró importaciones y exportaciones sin cargar los binarios:
@@ -76,13 +84,14 @@ La instalación de Studio contiene Qt 6/QML, CEF, FFmpeg y servicios nativos. La
 
 ## Dependencias y distribución
 
-El código original de Orbit360, REA, FFmpeg y los SDK de Insta360 son componentes distintos. La licencia MIT de REA no concede derechos sobre Insta360 ni sobre FFmpeg. El repositorio no incluye ejecutables de Studio, DLL del SDK, modelos, encabezados propietarios ni vídeos del usuario. El usuario aporta su distribución del SDK y sus condiciones de acceso; FFmpeg se instala por separado y mantiene la licencia de su distribución.
+El código original de Orbit360, REA, FFmpeg y los SDK de Insta360 son componentes distintos. La licencia MIT de REA no concede derechos sobre Insta360 ni sobre FFmpeg. El repositorio no incluye ejecutables de Studio, DLL del SDK, modelos, encabezados propietarios ni vídeos del usuario. El motor abierto funciona sin el SDK; quien seleccione el adaptador opcional aporta su distribución y condiciones de acceso. El instalador de Orbit360 puede descargar un runtime FFmpeg fijado y verificado, que conserva la licencia de su distribución. Las convenciones públicas consultadas, versiones y avisos se identifican en [Motor abierto](open-engine.md) y [Avisos de terceros](../THIRD_PARTY_NOTICES.md). No se afirma que reescribir software o publicar su código elimine automáticamente todas las cuestiones de licencia.
 
 ## Límites de compatibilidad
 
 - Un INSV legible por FFmpeg puede contener lentes sin unir. No debe tratarse automáticamente como una esfera panorámica válida.
 - Algunos formatos requieren dos archivos de lentes; otros guardan ambas pistas en un archivo. La documentación oficial describe esta diferencia. El nombre de archivo o la resolución no identifican por sí solos todos los modelos compatibles.
 - La presencia de recursos de cámaras en Studio no demuestra compatibilidad de esa cámara con Media SDK 3.1.5. Cada modelo, modo de captura, firmware y accesorio necesita una prueba con material real.
+- El motor abierto requiere calibración v3 válida y una ventana de captura compatible. Las pruebas X2/X3/X4 no certifican X5, X6 ni todas las modalidades de esos tres modelos. Una esfera sin huecos puede conservar costuras, inclinación y diferencias de exposición.
 - El reencuadre inicial es fijo por plano. Una secuencia de planos permite cambiar la vista; no equivale a interpolación de keyframes, seguimiento automático de objetos ni edición inteligente basada en comprensión visual completa.
 - Una salida 2:1 conserva la geometría equirectangular. Desde Orbit360 0.2 se añaden metadatos Google Spatial Media V1 y V2 tras el montaje; el resultado se verificó con el lector oficial de Google y ffprobe. No se realizó una subida real a YouTube. La implementación sigue el formato público y no procede de descompilar Studio.
 - Las pruebas de exportación de Orbit360 se documentan aparte. Un inventario estático no acredita calidad visual, estabilización perfecta ni soporte universal.
